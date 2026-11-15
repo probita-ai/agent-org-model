@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="How a company of humans and AI agents runs: seats, autonomy levels, capacity splits, hire, bench and rehire, and human overseers on every seat.">
+<title>Agent Company Org Chart</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; the org chart breaks wider and scrolls inside its own frame on phones */
+:root{
+  --bg:#F4F6F9;--surface:#FFFFFF;--ink:#14202E;--muted:#5B6878;--line:#D3DAE3;--accent:#0E7C6B;
+  --human:#B45309;--human-bg:#FDF1E1;--exec:#1D4ED8;--exec-bg:#E7EDFC;--lead:#0E7C6B;--lead-bg:#E2F3EF;
+  --worker:#475569;--worker-bg:#EDF0F4;--staff:#9F1239;--staff-bg:#FBE7ED;--reserve:#7C8796;
+  --good:#15803D;--warn:#B45309;--crit:#B91C1C;
+  --f-display:"Space Grotesk",system-ui,sans-serif;--f-body:"Inter",system-ui,sans-serif;--f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0F151C;--surface:#17202A;--ink:#E6ECF2;--muted:#97A5B5;--line:#2B3644;--accent:#34C3A8;
+  --human:#F59E0B;--human-bg:#2E2110;--exec:#86A8FF;--exec-bg:#172342;--lead:#34C3A8;--lead-bg:#0F302A;
+  --worker:#AAB7C7;--worker-bg:#1F2934;--staff:#F47BA6;--staff-bg:#33141F;--reserve:#8592A1;
+  --good:#4ADE80;--warn:#FBBF24;--crit:#F87171;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F151C;--surface:#17202A;--ink:#E6ECF2;--muted:#97A5B5;--line:#2B3644;--accent:#34C3A8;
+  --human:#F59E0B;--human-bg:#2E2110;--exec:#86A8FF;--exec-bg:#172342;--lead:#34C3A8;--lead-bg:#0F302A;
+  --worker:#AAB7C7;--worker-bg:#1F2934;--staff:#F47BA6;--staff-bg:#33141F;--reserve:#8592A1;
+  --good:#4ADE80;--warn:#FBBF24;--crit:#F87171;color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}body{margin:0}[hidden]{display:none!important}img{max-width:100%}
+body{background:var(--bg);color:var(--ink);font:15px/1.6 var(--f-body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 72px}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:56px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(30px,5vw,46px);font-weight:700;letter-spacing:-.02em}
+h2{font-size:26px;font-weight:600}
+h3{font-size:16px;font-weight:600}
+p{margin:0;max-width:68ch}
+.eyebrow{font:500 12px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.lede{color:var(--muted);font-size:17px}
+section{display:flex;flex-direction:column;gap:18px}
+header{display:flex;flex-direction:column;gap:14px}
+code,pre{font-family:var(--f-mono)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+/* chart */
+.chart{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow-x:auto}
+.chart svg{display:block;width:100%;min-width:860px;height:auto}
+svg text{font-family:var(--f-body);fill:var(--ink)}
+svg .t{font:600 14px var(--f-display)}
+svg .s{font-size:11px;fill:var(--muted)}
+svg .c{font-size:11px}
+svg .pct{font:500 11px var(--f-mono);fill:var(--accent)}
+svg .lbl{font:500 10px var(--f-mono);letter-spacing:.12em;fill:var(--muted)}
+svg .ln{stroke:var(--muted);stroke-width:1.4;fill:none}
+svg .dash{stroke-dasharray:5 4}
+.n-human rect{fill:var(--human-bg);stroke:var(--human);stroke-width:1.5}
+.n-exec rect{fill:var(--exec-bg);stroke:var(--exec);stroke-width:1.5}
+.n-ceo rect{fill:var(--exec-bg);stroke:var(--exec);stroke-width:2.5}
+.n-lead rect{fill:var(--lead-bg);stroke:var(--lead);stroke-width:1.5}
+.n-worker rect{fill:var(--worker-bg);stroke:var(--worker);stroke-width:1}
+.n-staff rect{fill:var(--staff-bg);stroke:var(--staff);stroke-width:1.5}
+.n-reserve rect{fill:var(--surface);stroke:var(--reserve);stroke-width:1.5;stroke-dasharray:6 4}
+.crew{fill:none;stroke:var(--line);stroke-width:1.2;stroke-dasharray:4 4}
+.plat{fill:var(--bg);stroke:var(--line)}
+.n-plat rect{fill:var(--surface);stroke:var(--line)}
+.legend{display:flex;flex-wrap:wrap;gap:10px 22px;padding:14px 18px;border-top:1px solid var(--line);font-size:13px;color:var(--muted);min-width:860px}
+.legend span{display:inline-flex;align-items:center;gap:8px}
+.sw{width:14px;height:14px;border-radius:4px;border:1.5px solid}
+
+/* capacity math */
+.flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px}
+.step{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.step b{font:600 18px var(--f-mono);font-variant-numeric:tabular-nums}
+.step small{color:var(--muted);font-size:12px}
+.arrow{align-self:center;color:var(--muted);font-family:var(--f-mono)}
+
+/* console */
+.console{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.c-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;padding:18px 20px;border-bottom:1px solid var(--line)}
+.c-head .who{display:flex;flex-direction:column;gap:2px}
+.c-head .who small{color:var(--muted)}
+.stats{display:flex;gap:22px;flex-wrap:wrap}
+.stat{display:flex;flex-direction:column}
+.stat small{color:var(--muted);font-size:12px}
+.stat b{font:600 20px var(--f-mono);font-variant-numeric:tabular-nums}
+.meter{display:flex;height:10px;margin:0 20px;margin-top:16px;border-radius:5px;overflow:hidden;background:var(--worker-bg)}
+.meter i{display:block;height:100%;border-right:2px solid var(--surface)}
+.rows{display:flex;flex-direction:column}
+.row{display:grid;grid-template-columns:minmax(150px,1.3fr) 110px minmax(160px,2fr) 96px 92px;gap:14px;align-items:center;padding:14px 20px;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row .name{display:flex;flex-direction:column;min-width:0}
+.row .name small{color:var(--muted);font-size:12px}
+.pill{display:inline-flex;align-items:center;justify-self:start;gap:6px;font:500 12px var(--f-mono);padding:3px 9px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.pill.good{color:var(--good)}.pill.warn{color:var(--warn)}.pill.crit{color:var(--crit)}.pill.new{color:var(--exec)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.amt{display:flex;flex-direction:column;text-align:right}
+.amt small{color:var(--muted);font-size:12px}
+button{font:500 13px var(--f-body);border-radius:8px;padding:7px 12px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+button:hover{border-color:var(--ink)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.fire{color:var(--crit);border-color:color-mix(in srgb,var(--crit) 45%,transparent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.note{grid-column:1/-1;font-size:12.5px;color:var(--crit);margin-top:-6px}
+.c-foot{display:grid;grid-template-columns:1fr 1fr 1.2fr;border-top:1px solid var(--line)}
+.c-foot>div{padding:16px 20px;display:flex;flex-direction:column;gap:10px;min-width:0;border-left:1px solid var(--line)}
+.c-foot>div:first-child{border-left:0}
+.c-foot h3{font-size:13px;font-family:var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.bench-item{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.bench-item small{display:block;color:var(--muted);font-size:12px}
+.hire{display:flex;gap:8px;flex-wrap:wrap}
+select{font:14px var(--f-body);padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);flex:1;min-width:140px}
+.log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font:12.5px/1.45 var(--f-mono);color:var(--muted);max-height:170px;overflow:auto}
+.log li b{color:var(--ink);font-weight:500}
+.empty{color:var(--muted);font-size:13px}
+
+/* lifecycle */
+.life{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;counter-reset:s}
+.life li{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px;counter-increment:s}
+.life li::before{content:counter(s);font:500 12px var(--f-mono);color:var(--accent)}
+.life li p{font-size:13.5px;color:var(--muted)}
+.exits{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.exit{border-radius:10px;padding:14px;border:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;gap:4px}
+.exit p{font-size:13.5px;color:var(--muted)}
+.exit .tag{font:500 11px var(--f-mono);letter-spacing:.1em;text-transform:uppercase}
+
+/* table */
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:820px;font-size:13.5px}
+th,td{text-align:left;padding:11px 14px;border-top:1px solid var(--line);vertical-align:top}
+thead th{border-top:0;font:500 11.5px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+td:first-child{font-weight:600;white-space:nowrap}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8px;vertical-align:1px}
+
+.two{display:grid;grid-template-columns:1.1fr 1fr;gap:24px;align-items:start}
+.two>*{min-width:0}
+pre{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;overflow-x:auto;font-size:12.5px;line-height:1.6}
+pre .k{color:var(--exec)}pre .c{color:var(--muted)}
+.rules{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.rules li{padding-left:16px;border-left:2px solid var(--accent)}
+.rules li b{display:block;font-family:var(--f-display);font-weight:600}
+.rules li span{color:var(--muted);font-size:14px}
+
+/* seats, badges, oversight */
+svg .bd text{font:600 9.5px var(--f-mono);letter-spacing:.04em}
+.bd-h rect{fill:var(--surface);stroke:var(--human)}.bd-h text{fill:var(--human)}
+.bd-a rect{fill:var(--surface);stroke:var(--exec)}.bd-a text{fill:var(--exec)}
+.bd-r rect{fill:var(--surface);stroke:var(--muted)}.bd-r text{fill:var(--muted)}
+.badge{display:inline-block;font:600 10.5px/1.4 var(--f-mono);letter-spacing:.05em;padding:1px 7px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.badge.h{color:var(--human)}.badge.a{color:var(--exec)}.badge.r{color:var(--muted)}
+.levels{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.lv{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px}
+.lv .tag{font:600 12px var(--f-mono);color:var(--exec)}
+.lv:first-child .tag{color:var(--human)}
+.lv p{font-size:13.5px;color:var(--muted)}
+.powers{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px 20px}
+.powers div{display:flex;flex-direction:column;gap:2px;padding-top:10px;border-top:2px solid var(--human)}
+.powers b{font-family:var(--f-display);font-weight:600}
+.powers span{font-size:13px;color:var(--muted)}
+.ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.ctl label{font-size:12px;color:var(--muted)}
+.ctl select{flex:0 1 auto}
+.banner{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;padding:12px 20px;background:var(--human-bg);border-bottom:1px solid var(--line);font-size:14px}
+.approvals{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:10px;background:var(--exec-bg)}
+.approvals h3{font:500 12px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--exec)}
+.appr{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;font-size:14px}
+.console.is-paused .rows,.console.is-paused .c-foot,.console.is-paused .meter{opacity:.5}
+button:disabled{cursor:not-allowed;opacity:.6}
+.room{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.room-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:16px;padding:16px 20px;border-bottom:1px solid var(--line)}
+.seats{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;padding:16px 20px}
+.seat{border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.seat.paused{background:var(--bg)}
+.seat .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.seat .occ{margin-top:4px}
+.seat small{color:var(--muted);font-size:12px}
+.alert-line{font-size:12.5px;color:var(--warn)}
+.seat-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:auto;padding-top:6px;border-top:1px solid var(--line)}
+button.kill{background:var(--crit);border-color:var(--crit);color:var(--surface);font-weight:600}
+.pill.muted{color:var(--muted)}
+
+@media (max-width:760px){
+  .row{grid-template-columns:1fr auto;gap:8px 12px}
+  .row .slider{grid-column:1/-1}
+  .c-foot{grid-template-columns:1fr}
+  .c-foot>div{border-left:0;border-top:1px solid var(--line)}
+  .c-foot>div:first-child{border-top:0}
+  .two{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<header>
+  <span class="eyebrow">Agent platform · organization model</span>
+  <h1>A company of humans and agents, from board to worker</h1>
+  <p class="lede">Every box is a seat that a human or an agent can fill. Each leader gets a share of capacity from above and splits it among the seats below. Leaders can hire agents onto probation, bench the ones that underperform, and rehire them later. Every agent seat has a human overseer who can see it, pause it and undo its work.</p>
+</header>
+
+<section>
+  <div class="chart">
+  <svg viewBox="0 0 1110 680" role="img" aria-label="Org chart: Board of humans and a control room of overseers, a human CEO with a copilot, executive and crew lead seats filled by humans or agents with autonomy levels, worker agents in crews, staff functions, and the platform layer.">
+    <!-- connectors -->
+    <path class="ln" d="M420 76V116"/>
+    <path class="ln" d="M420 178V204M125 204H685M125 204V230M340 204V230M555 204V230"/>
+    <path class="ln dash" d="M685 204H770V230"/>
+    <text class="pct" x="131" y="222">40%</text><text class="pct" x="346" y="222">25%</text>
+    <text class="pct" x="561" y="222">25%</text><text class="pct" x="776" y="222">10%</text>
+    <path class="ln" d="M125 290V318M75 318H205M75 318V346M205 318V346"/>
+    <path class="ln" d="M340 290V346"/>
+    <path class="ln" d="M555 290V318M490 318H620M490 318V346M620 318V346"/>
+    <path class="ln dash" d="M770 290V346"/>
+    <text class="pct" x="81" y="338">60%</text><text class="pct" x="211" y="338">40%</text>
+    <text class="pct" x="346" y="338">100%</text>
+    <text class="pct" x="496" y="338">70%</text><text class="pct" x="626" y="338">30%</text>
+    <path class="ln" d="M75 402V424M205 402V424M340 402V424M490 402V424M620 402V424"/>
+    <path class="ln dash" d="M540 147H880M880 149V359M880 219H890M880 289H890M880 359H890"/>
+
+    <!-- board + ceo -->
+    <path class="ln dash" d="M570 46H620" style="stroke:var(--human)"/>
+    <g class="n-human"><rect x="620" y="16" width="250" height="60" rx="10"/>
+      <text class="t" x="745" y="41" text-anchor="middle">Control room · Overseers</text>
+      <text class="s" x="745" y="60" text-anchor="middle">Watch, pause or roll back any seat</text></g>
+    <g class="n-human"><rect x="270" y="16" width="300" height="60" rx="10"/>
+      <text class="t" x="420" y="41" text-anchor="middle">Board · Humans</text>
+      <text class="s" x="420" y="60" text-anchor="middle">Mission, total budget, hard limits</text></g>
+    <g class="n-ceo"><rect x="300" y="116" width="240" height="62" rx="10"/>
+      <text class="t" x="420" y="142" text-anchor="middle">CEO</text>
+      <text class="s" x="420" y="161" text-anchor="middle">Strategy · splits capacity</text></g>
+
+    <!-- executives -->
+    <g class="n-exec"><rect x="40" y="230" width="170" height="60" rx="10"/>
+      <text class="t" x="125" y="255" text-anchor="middle">CTO</text><text class="s" x="125" y="274" text-anchor="middle">Engineering</text></g>
+    <g class="n-exec"><rect x="255" y="230" width="170" height="60" rx="10"/>
+      <text class="t" x="340" y="255" text-anchor="middle">CMO</text><text class="s" x="340" y="274" text-anchor="middle">Marketing</text></g>
+    <g class="n-exec"><rect x="470" y="230" width="170" height="60" rx="10"/>
+      <text class="t" x="555" y="255" text-anchor="middle">COO</text><text class="s" x="555" y="274" text-anchor="middle">Operations</text></g>
+    <g class="n-reserve"><rect x="685" y="230" width="170" height="60" rx="10"/>
+      <text class="t" x="770" y="255" text-anchor="middle">Reserve</text><text class="s" x="770" y="274" text-anchor="middle">Unassigned capacity</text></g>
+
+    <!-- leads -->
+    <g class="n-lead"><rect x="15" y="346" width="120" height="56" rx="10"/><text class="t" x="75" y="370" text-anchor="middle">Platform Lead</text><text class="s" x="75" y="388" text-anchor="middle">Runs a crew</text></g>
+    <g class="n-lead"><rect x="145" y="346" width="120" height="56" rx="10"/><text class="t" x="205" y="370" text-anchor="middle">Product Lead</text><text class="s" x="205" y="388" text-anchor="middle">Runs a crew</text></g>
+    <g class="n-lead"><rect x="280" y="346" width="120" height="56" rx="10"/><text class="t" x="340" y="370" text-anchor="middle">Content Lead</text><text class="s" x="340" y="388" text-anchor="middle">Runs a crew</text></g>
+    <g class="n-lead"><rect x="430" y="346" width="120" height="56" rx="10"/><text class="t" x="490" y="370" text-anchor="middle">Support Lead</text><text class="s" x="490" y="388" text-anchor="middle">Runs a crew</text></g>
+    <g class="n-lead"><rect x="560" y="346" width="120" height="56" rx="10"/><text class="t" x="620" y="370" text-anchor="middle">Ops Lead</text><text class="s" x="620" y="388" text-anchor="middle">Runs a crew</text></g>
+    <g class="n-reserve"><rect x="700" y="346" width="140" height="56" rx="10"/><text class="t" x="770" y="370" text-anchor="middle">Bench</text><text class="s" x="770" y="388" text-anchor="middle">Fired, can be rehired</text></g>
+
+    <!-- crews -->
+    <g id="crews"></g>
+
+    <!-- staff functions -->
+    <text class="lbl" x="990" y="108" text-anchor="middle">STAFF FUNCTIONS</text>
+    <g class="n-staff"><rect x="890" y="120" width="200" height="58" rx="10"/><text class="t" x="990" y="145" text-anchor="middle">HR Agent</text><text class="s" x="990" y="164" text-anchor="middle">Hires, reviews, benches</text></g>
+    <g class="n-staff"><rect x="890" y="190" width="200" height="58" rx="10"/><text class="t" x="990" y="215" text-anchor="middle">Finance Agent</text><text class="s" x="990" y="234" text-anchor="middle">Budgets and spend caps</text></g>
+    <g class="n-staff"><rect x="890" y="260" width="200" height="58" rx="10"/><text class="t" x="990" y="285" text-anchor="middle">Audit &amp; Ledger</text><text class="s" x="990" y="304" text-anchor="middle">Records every decision</text></g>
+    <g class="n-staff"><rect x="890" y="330" width="200" height="58" rx="10"/><text class="t" x="990" y="355" text-anchor="middle">Policy Guard</text><text class="s" x="990" y="374" text-anchor="middle">Blocks moves over limits</text></g>
+
+    <!-- platform -->
+    <rect class="plat" x="15" y="570" width="1075" height="96" rx="12"/>
+    <text class="lbl" x="35" y="594">PLATFORM · EVERY LEVEL RUNS ON THIS</text>
+    <g id="plat"></g>
+    <g id="badges"></g>
+  </svg>
+  <div class="legend">
+    <span><i class="sw" style="background:var(--human-bg);border-color:var(--human)"></i>Humans</span>
+    <span><i class="sw" style="background:var(--exec-bg);border-color:var(--exec)"></i>Executive agents</span>
+    <span><i class="sw" style="background:var(--lead-bg);border-color:var(--lead)"></i>Crew leads</span>
+    <span><i class="sw" style="background:var(--worker-bg);border-color:var(--worker)"></i>Worker agents</span>
+    <span><i class="sw" style="background:var(--staff-bg);border-color:var(--staff)"></i>Staff functions</span>
+    <span><i class="sw" style="border-color:var(--reserve);border-style:dashed"></i>Reserve and bench</span>
+    <span class="mono" style="color:var(--accent)">40%</span><span>share of the parent's capacity</span>
+    <span><span class="badge h">HUMAN</span><span class="badge a">AGENT · L3</span>who fills the seat, and an agent's autonomy level</span>
+  </div>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">Seats and oversight</span>
+  <h2>Every box is a seat that a human or an agent can fill</h2>
+  <p>A seat holds the authority, the budget share and the reports. Who fills it is one field, so handing a seat to an agent or taking it back changes nothing else. Agent seats carry an autonomy level that rises as the scorecard earns it, and every agent seat has a named human overseer with a backup.</p>
+  <div class="levels">
+    <div class="lv"><span class="tag">L1 · Manual</span><p>A human fills the seat and makes every decision. Agents only do assigned tasks.</p></div>
+    <div class="lv"><span class="tag">L2 · Suggest</span><p>The agent proposes hires, benches and rehires. The overseer approves each one.</p></div>
+    <div class="lv"><span class="tag">L3 · Act and report</span><p>The agent acts within its limits. The overseer reviews afterwards and can undo.</p></div>
+    <div class="lv"><span class="tag">L4 · Autonomous</span><p>The agent acts within its limits. Only exceptions reach a human.</p></div>
+  </div>
+  <h3>What an overseer can always do</h3>
+  <div class="powers">
+    <div><b>See</b><span>Live status, spend, scorecard and recent decisions</span></div>
+    <div><b>Pause</b><span>Stop one agent, a crew, a division or everything</span></div>
+    <div><b>Roll back</b><span>Undo any applied change from its stored before-state</span></div>
+    <div><b>Override</b><span>Change any decision; it counts against the agent's score</span></div>
+    <div><b>Take back</b><span>Move a seat from an agent to a human at once</span></div>
+    <div><b>Audit</b><span>Search the ledger for who decided what, and who approved it</span></div>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">How the percentages work</span>
+  <h2>Capacity flows down, one split at a time</h2>
+  <p>Capacity is the money, tokens and concurrent job slots a unit may use. Each leader gets a share of its parent's capacity and splits it among its reports. Whatever a leader doesn't assign stays in its reserve. Here is one monthly budget traced from the board to a single worker agent.</p>
+  <div class="flow">
+    <div class="step"><small>Board sets</small><b>$10,000</b><small>per month</small></div><span class="arrow">→</span>
+    <div class="step"><small>CEO gives CTO 40%</small><b>$4,000</b><small>Engineering</small></div><span class="arrow">→</span>
+    <div class="step"><small>CTO gives Platform 60%</small><b>$2,400</b><small>Platform crew</small></div><span class="arrow">→</span>
+    <div class="step"><small>Lead gives Coder 40%</small><b>$960</b><small>one worker agent</small></div>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">Try it · crew lead console</span>
+  <h2>Allocate, fire and rehire</h2>
+  <p>This is the Platform Lead's seat. Drag a slider to change an agent's share; the total can't go past 100%. Benching frees a share, and rehired or new agents start on probation at 0%. Change the autonomy level to see who acts: at L1 a human runs the seat, at L2 the lead agent's hires, benches and rehires wait for the overseer, and at L3 and L4 it acts and reports. Budget splits apply right away at every level and go in the ledger.</p>
+  <div class="console" id="console">
+    <div class="c-head">
+      <div class="who"><h3>Platform Lead</h3><small id="who-line"></small>
+        <div class="ctl"><label for="lvl">Autonomy</label>
+          <select id="lvl"><option value="1">L1 · Manual, a human runs the seat</option><option value="2" selected>L2 · Suggest, overseer approves</option><option value="3">L3 · Act and report</option><option value="4">L4 · Autonomous within limits</option></select>
+          <button id="pauseBtn">Pause crew</button></div></div>
+      <div class="stats">
+        <div class="stat"><small>Allocated</small><b id="s-alloc">100%</b></div>
+        <div class="stat"><small>Unallocated</small><b id="s-free">0%</b></div>
+        <div class="stat"><small>Free budget</small><b id="s-usd">$0</b></div>
+      </div>
+    </div>
+    <div class="banner" id="banner" hidden><span><strong>Paused by the overseer.</strong> No jobs run and no changes apply until someone resumes the crew.</span><button id="resumeBtn" class="primary">Resume crew</button></div>
+    <div class="approvals" id="approvals" hidden></div>
+    <div class="meter" id="meter" aria-hidden="true"></div>
+    <div class="rows" id="rows" style="margin-top:8px"></div>
+    <div class="c-foot">
+      <div><h3>Bench</h3><div id="bench" style="display:flex;flex-direction:column;gap:10px"></div></div>
+      <div><h3>Hire from catalog</h3>
+        <div class="hire"><label for="cat" class="sr" hidden>Candidate agent</label><select id="cat"></select><button class="primary" id="hireBtn">Hire</button></div>
+        <small class="empty">New hires start on probation in shadow mode: they work alongside the crew but nothing they do takes effect.</small></div>
+      <div><h3>Ledger</h3><ul class="log" id="log"></ul></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">Control room</span>
+  <h2>Humans can see and stop everything</h2>
+  <p>Every agent seat has a named human overseer. The control room shows each seat's status, spend and alerts, with a pause button on every card. Pause everything is plain software, so stopping work never depends on an agent cooperating. Pausing the Platform Lead here also pauses the console above.</p>
+  <div class="room">
+    <div class="room-head">
+      <div class="stats"><div class="stat"><small>Running</small><b id="r-run">8</b></div><div class="stat"><small>Paused</small><b id="r-pause">0</b></div><div class="stat"><small>Alerts</small><b id="r-alert">2</b></div></div>
+      <button class="kill" id="killBtn">Pause everything</button>
+    </div>
+    <div class="seats" id="seats"></div>
+  </div>
+  <div class="exits">
+    <div class="exit"><span class="tag" style="color:var(--good)">Low risk</span><h3>Drafts, internal summaries</h3><p>Daily digest, and 2% of work sampled for human review.</p></div>
+    <div class="exit"><span class="tag" style="color:var(--warn)">Medium risk</span><h3>Customer replies, code changes</h3><p>Alerts, 10% sampled, and every change ready to roll back.</p></div>
+    <div class="exit"><span class="tag" style="color:var(--crit)">High risk</span><h3>Money, production, legal, people</h3><p>A human approves before anything takes effect.</p></div>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">Lifecycle</span>
+  <h2>From hire to bench and back</h2>
+  <ol class="life">
+    <li><h3>Catalog</h3><p>Agent definitions live in the registry. A lead picks one that its authority allows.</p></li>
+    <li><h3>Probation</h3><p>Shadow mode at 0% capacity. Its outputs are compared with the crew's, and nothing it does takes effect.</p></li>
+    <li><h3>Active</h3><p>Gets a real share of capacity and its work takes effect, within its permits and checklists.</p></li>
+    <li><h3>Review</h3><p>HR Agent scores it on a schedule: success rate, cost per job, checklist pass rate, human overrides.</p></li>
+  </ol>
+  <div class="exits">
+    <div class="exit"><span class="tag" style="color:var(--good)">Promote</span><h3>More capacity or a bigger role</h3><p>Lead raises its share, or the executive makes it a crew lead.</p></div>
+    <div class="exit"><span class="tag" style="color:var(--warn)">Retrain</span><h3>New prompt, skills or model</h3><p>A change set updates its definition, then it goes back to probation.</p></div>
+    <div class="exit"><span class="tag" style="color:var(--crit)">Bench</span><h3>Fired, but kept</h3><p>Capacity drops to 0 and access is revoked. Its history stays, so it can be rehired.</p></div>
+    <div class="exit"><span class="tag" style="color:var(--muted)">Retire</span><h3>Removed for good</h3><p>Needs a human's approval. The ledger keeps its record.</p></div>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">Authority</span>
+  <h2>Who can do what</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Level</th><th>Capacity</th><th>Hire and fire</th><th>Approves change sets</th><th>Escalates to</th></tr></thead>
+    <tbody>
+      <tr><td><i class="dot" style="background:var(--human)"></i>Board (humans)</td><td>Sets the total budget</td><td>The CEO seat, and every retirement</td><td>All, final say</td><td>—</td></tr>
+      <tr><td><i class="dot" style="background:var(--human)"></i>Overseer (human)</td><td>Watches spend in its area</td><td>Can take any seat back from an agent</td><td>Approves moves at L2; can roll back any change</td><td>Board</td></tr>
+      <tr><td><i class="dot" style="background:var(--exec)"></i>CEO</td><td>Splits across divisions, holds the reserve</td><td>Executives, with board approval</td><td>High risk</td><td>Board</td></tr>
+      <tr><td><i class="dot" style="background:var(--exec)"></i>Executive</td><td>Splits across its crews</td><td>Crew leads; proposes retirements</td><td>Medium risk, own division</td><td>CEO</td></tr>
+      <tr><td><i class="dot" style="background:var(--lead)"></i>Crew lead</td><td>Splits across its agents</td><td>Hire to probation, bench, rehire</td><td>Low risk, own crew</td><td>Executive</td></tr>
+      <tr><td><i class="dot" style="background:var(--worker)"></i>Worker agent</td><td>Uses its own share</td><td>None</td><td>Proposes only</td><td>Crew lead</td></tr>
+      <tr><td><i class="dot" style="background:var(--staff)"></i>Staff functions</td><td>Enforce caps, don't allocate</td><td>HR runs reviews and recommends</td><td>Policy checks on every change set</td><td>CEO and Board</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <span class="eyebrow">Configuration</span>
+  <h2>A seat is just config</h2>
+  <div class="two">
+<pre><span class="k">seat</span>: platform-lead
+<span class="k">occupant</span>: { type: agent, agent: lead-agent@v2 }
+<span class="k">autonomy</span>: L2                <span class="c"># suggest; overseer approves</span>
+<span class="k">overseer</span>: { user: priya, backup: sam }
+<span class="k">reports_to</span>: cto
+<span class="k">capacity</span>:
+  <span class="k">from_parent</span>: 60%          <span class="c"># of the CTO's share</span>
+  <span class="k">allocations</span>:
+    coder: 40%
+    tester: 35%
+    reviewer: 25%
+<span class="k">authority</span>:
+  <span class="k">can_hire</span>: [catalog:engineering/*]  <span class="c"># into probation only</span>
+  <span class="k">can_bench</span>: true
+  <span class="k">can_retire</span>: false             <span class="c"># a human approves</span>
+  <span class="k">max_agents</span>: 6
+  <span class="k">approve_change_sets</span>: { max_risk: low }
+<span class="k">review</span>:
+  <span class="k">every</span>: 7d
+  <span class="k">scorecard</span>: [success_rate, cost_per_job,
+              checklist_pass, human_overrides]
+  <span class="k">bench_if</span>: { score_below: 60, reviews: 2 }
+  <span class="k">probation</span>: { mode: shadow, min_jobs: 20,
+               promote_if: "agreement >= 85%" }</pre>
+    <ul class="rules">
+      <li><b>Humans own the top</b><span>The board sets the total budget and hard limits. No agent can raise its own budget or one above it.</span></li>
+      <li><b>Authority only flows down</b><span>A leader can hire, bench or reallocate only inside its own subtree and within its permits.</span></li>
+      <li><b>Firing is reversible</b><span>Benching takes away capacity and access but keeps the agent's definition and history. Only retirement is permanent.</span></li>
+      <li><b>Every move is a change set</b><span>Reallocations, hires and firings are proposed, policy-checked, approved at the right level and written to the ledger.</span></li>
+      <li><b>No unwatched agents</b><span>An agent seat can't be activated without a named human overseer and a backup.</span></li>
+      <li><b>The off switch is plain software</b><span>Pausing never depends on an agent cooperating, and agents can't lower their own oversight.</span></li>
+      <li><b>Probation before power</b><span>New and rehired agents prove themselves in shadow mode before they get real capacity.</span></li>
+    </ul>
+  </div>
+</section>
+</div>
+
+<script>
+// --- static chart pieces built from data ---
+(function(){
+  const NS="http://www.w3.org/2000/svg";
+  const el=(t,a,txt)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(txt)e.textContent=txt;return e;};
+  const crews=[[75,[["Coder",40],["Tester",35],["Reviewer",25]]],[205,[["Researcher",50],["Designer",50]]],
+    [340,[["Writer",50],["Editor",30],["Fact-check",20]]],[490,[["Triage",40],["Resolver",45],["QA",15]]],[620,[["Scheduler",60],["Reporter",40]]]];
+  const g=document.getElementById("crews");
+  crews.forEach(([cx,ws])=>{
+    g.appendChild(el("rect",{class:"crew",x:cx-62,y:424,width:124,height:116,rx:10}));
+    g.appendChild(el("text",{class:"lbl",x:cx-54,y:439},"CREW"));
+    ws.forEach(([n,p],i)=>{const w=el("g",{class:"n-worker"});
+      w.appendChild(el("rect",{x:cx-54,y:446+i*30,width:108,height:24,rx:6}));
+      w.appendChild(el("text",{class:"c",x:cx,y:462+i*30,"text-anchor":"middle"},n+" · "+p+"%"));g.appendChild(w);});
+  });
+  const plat=[["Registry","agents, skills, tools"],["Runtime","runs every job"],["Change sets","proposed edits"],
+    ["Checklists","done-when gates"],["Scorecards","performance data"],["Permits","scoped, expiring access"]];
+  const p=document.getElementById("plat");
+  plat.forEach(([a,b],i)=>{const x=35+i*175;const w=el("g",{class:"n-plat"});
+    w.appendChild(el("rect",{x:x,y:606,width:159,height:44,rx:8}));
+    w.appendChild(el("text",{class:"t",x:x+79.5,y:625,"text-anchor":"middle"},a));
+    w.appendChild(el("text",{class:"s",x:x+79.5,y:641,"text-anchor":"middle"},b));p.appendChild(w);});
+  const bds=[[540,116,"HUMAN + COPILOT","h"],[210,230,"AGENT · L2","a"],[425,230,"AGENT · L3","a"],[640,230,"HUMAN","h"],
+    [135,346,"AGENT · L2","a"],[265,346,"HUMAN","h"],[400,346,"AGENT · L2","a"],[550,346,"AGENT · L3","a"],[680,346,"HUMAN","h"],
+    [1090,120,"AGENT · L3","a"],[1090,190,"AGENT · L3","a"],[1090,260,"AGENT · L4","a"],[1090,330,"RULES","r"]];
+  const bg=document.getElementById("badges");
+  bds.forEach(([r,t,l,k])=>{const w=l.length*6.2+14;const gg=el("g",{class:"bd bd-"+k});
+    gg.appendChild(el("rect",{x:r-8-w,y:t-7,width:w,height:16,rx:8}));
+    gg.appendChild(el("text",{x:r-8-w/2,y:t+4.5,"text-anchor":"middle"},l));bg.appendChild(gg);});
+})();
+
+// --- crew lead console ---
+const BUDGET=2400;
+const palette=["var(--exec)","var(--accent)","var(--human)","var(--staff)","var(--worker)","var(--good)"];
+let agents=[
+  {id:"coder",name:"Coder",ver:"v3",pct:40,score:91,status:"active"},
+  {id:"tester",name:"Tester",ver:"v2",pct:35,score:76,status:"active"},
+  {id:"reviewer",name:"Reviewer",ver:"v1",pct:25,score:54,status:"active"}];
+let bench=[{id:"coder-v1",name:"Coder",ver:"v1",score:63,why:"Replaced by v3"}];
+let catalog=[{id:"docs",name:"Docs Writer",ver:"v1"},{id:"perf",name:"Perf Tuner",ver:"v2"},{id:"sec",name:"Security Scanner",ver:"v1"}];
+const LEVELS={1:"Manual",2:"Suggest",3:"Act and report",4:"Autonomous"};
+const OV="Priya N. (overseer)";
+let level=2, pending=[];
+const paused=new Set();
+const log=[["Board","set Engineering budget to $4,000"],["CTO","gave Platform Lead 60%"],[OV,"approved: benched Coder v1 · replaced by v3"]];
+const SEATS=[
+  {id:"cto",name:"CTO",occ:"Agent · L2",ov:"J. Okafor",spend:61,score:84,samples:3},
+  {id:"cmo",name:"CMO",occ:"Agent · L3",ov:"A. Rivera",spend:48,score:88,samples:5},
+  {id:"platform",name:"Platform Lead",ov:"Priya N.",samples:4},
+  {id:"content",name:"Content Lead",occ:"Agent · L2",ov:"Sam K.",spend:52,score:71,samples:6,alert:"Checklist failed on 2 of 14 jobs"},
+  {id:"support",name:"Support Lead",occ:"Agent · L3",ov:"Mei L.",spend:86,score:82,samples:9,alert:"Spend at 86% of monthly budget"},
+  {id:"hr",name:"HR Agent",occ:"Agent · L3",ov:"Mei L.",spend:22,score:90,samples:2},
+  {id:"finance",name:"Finance Agent",occ:"Agent · L3",ov:"J. Okafor",spend:15,score:93,samples:1},
+  {id:"audit",name:"Audit &amp; Ledger",occ:"Agent · L4",ov:"Board",spend:9,score:97,samples:1}];
+
+const $=id=>document.getElementById(id);
+const total=()=>agents.reduce((s,a)=>s+a.pct,0);
+const usd=n=>"$"+Math.round(n).toLocaleString("en-US");
+const actor=()=>level===1?"Priya N. (human lead)":"Lead agent";
+const crewPaused=()=>paused.has("platform");
+const isPending=(k,id)=>pending.some(p=>p.kind===k&&p.id===id);
+const tail=()=>level>=3?" · reported to overseer":"";
+function addLog(who,what){log.push([who,what]);}
+function scorePill(a){
+  if(a.status==="probation")return '<span class="pill new">Probation</span>';
+  const c=a.score>=80?"good":a.score>=60?"warn":"crit";
+  return `<span class="pill ${c}">Score ${a.score}</span>`;
+}
+const ACT={
+  bench(id){const i=agents.findIndex(a=>a.id===id);if(i<0)return null;const[a]=agents.splice(i,1);
+    bench.push({id:a.id,name:a.name,ver:a.ver,score:a.status==="probation"?"—":a.score,why:a.status==="probation"?"Did not pass probation":"Benched"});
+    return `benched ${a.name} ${a.ver} · freed ${a.pct}%`;},
+  rehire(id){const i=bench.findIndex(b=>b.id===id);if(i<0)return null;const[x]=bench.splice(i,1);
+    agents.push({id:x.id,name:x.name,ver:x.ver,pct:0,score:x.score,status:"probation"});return `rehired ${x.name} ${x.ver} onto probation`;},
+  hire(id){const i=catalog.findIndex(c=>c.id===id);if(i<0)return null;const[c]=catalog.splice(i,1);
+    agents.push({id:c.id,name:c.name,ver:c.ver,pct:0,score:"—",status:"probation"});return `hired ${c.name} ${c.ver} onto probation`;}
+};
+function describe(k,id){const src=k==="bench"?agents:k==="rehire"?bench:catalog;const x=src.find(o=>o.id===id);return x?`${k} ${x.name} ${x.ver}`:k;}
+function request(k,id){
+  if(crewPaused())return;
+  if(level===2){if(isPending(k,id))return;const text=describe(k,id);pending.push({kind:k,id,text});addLog("Lead agent","proposed: "+text);}
+  else{const m=ACT[k](id);if(m)addLog(actor(),m+tail());}
+  render();
+}
+function stats(){
+  const t=total();$("s-alloc").textContent=t+"%";$("s-free").textContent=(100-t)+"%";$("s-usd").textContent=usd(BUDGET*(100-t)/100);
+  $("meter").innerHTML=agents.map((a,i)=>`<i style="width:${a.pct}%;background:${palette[i%palette.length]}"></i>`).join("");
+}
+function render(){
+  const p=crewPaused(),dis=p?"disabled":"";
+  stats();
+  $("who-line").textContent=(level===1?"Filled by Priya N. (human)":`Filled by lead-agent v2 · L${level} ${LEVELS[level]}`)+" · Overseer: Priya N. · Reports to CTO · $2,400 / month";
+  $("lvl").value=String(level);$("lvl").disabled=p;
+  $("pauseBtn").textContent=p?"Paused":"Pause crew";$("pauseBtn").disabled=p;
+  $("banner").hidden=!p;$("console").classList.toggle("is-paused",p);
+  $("approvals").hidden=!pending.length;
+  $("approvals").innerHTML=pending.length?"<h3>Waiting for the overseer</h3>"+pending.map((x,i)=>`<div class="appr"><span>Lead agent wants to <strong>${x.text}</strong></span><span style="display:flex;gap:6px"><button class="primary" data-approve="${i}" ${dis}>Approve</button><button data-reject="${i}" ${dis}>Reject</button></span></div>`).join(""):"";
+  $("rows").innerHTML=agents.length?agents.map((a,i)=>`
+    <div class="row">
+      <div class="name"><strong>${a.name} <span class="mono" style="color:var(--muted);font-weight:400">${a.ver}</span></strong>
+        <small>${a.status==="probation"?"Shadow mode · outputs compared, not applied":"Active worker"}</small></div>
+      ${scorePill(a)}
+      <div class="slider"><label for="r-${a.id}" hidden>${a.name} share</label>
+        <input type="range" id="r-${a.id}" min="0" max="100" step="5" value="${a.pct}" data-i="${i}" ${a.status==="probation"||p?"disabled":""}></div>
+      <div class="amt"><b class="mono">${a.pct}%</b><small class="mono">${usd(BUDGET*a.pct/100)}/mo</small></div>
+      <div style="display:flex;justify-content:flex-end;gap:6px">
+        ${a.status==="probation"?`<button data-promote="${a.id}" ${dis}>Promote</button>`:""}
+        ${isPending("bench",a.id)?"<button disabled>Awaiting approval</button>":`<button class="fire" data-fire="${a.id}" ${dis}>Bench</button>`}</div>
+      ${a.status==="active"&&a.score<60?`<div class="note">Below 60 for two reviews. HR Agent recommends retraining or benching.</div>`:""}
+    </div>`).join(""):'<div class="row"><span class="empty">No agents in this crew. Hire one from the catalog or rehire from the bench.</span></div>';
+  $("bench").innerHTML=bench.length?bench.map(b=>`<div class="bench-item"><div><strong>${b.name} <span class="mono" style="color:var(--muted);font-weight:400">${b.ver}</span></strong><small>${b.why} · last score ${b.score}</small></div>${isPending("rehire",b.id)?"<button disabled>Awaiting approval</button>":`<button data-rehire="${b.id}" ${dis}>Rehire</button>`}</div>`).join(""):'<span class="empty">Nobody on the bench.</span>';
+  const open=catalog.filter(c=>!isPending("hire",c.id));
+  $("cat").innerHTML=open.length?open.map(c=>`<option value="${c.id}">${c.name} ${c.ver}</option>`).join(""):'<option value="">No candidates left</option>';
+  $("cat").disabled=p;$("hireBtn").disabled=p||!open.length;
+  $("log").innerHTML=log.slice().reverse().map(([w,x])=>`<li><b>${w}</b> ${x}</li>`).join("");
+  renderRoom();
+}
+function renderRoom(){
+  $("seats").innerHTML=SEATS.map(s=>{
+    let occ=s.occ,line=`Spend ${s.spend}% of budget · score ${s.score}`,alert=s.alert;
+    if(s.id==="platform"){
+      occ=level===1?"Human":"Agent · L"+level;
+      const act=agents.filter(a=>a.status==="active"&&typeof a.score==="number");
+      const avg=act.length?Math.round(act.reduce((x,a)=>x+a.score,0)/act.length):"—";
+      line=`Allocated ${total()}% · score ${avg}`;
+      alert=pending.length?`${pending.length} ${pending.length===1?"move":"moves"} waiting for approval`:null;
+    }
+    const p=paused.has(s.id);
+    const st=p?'<span class="pill muted">Paused</span>':alert?'<span class="pill warn">Alert</span>':'<span class="pill good">Running</span>';
+    return `<div class="seat${p?" paused":""}"><div class="top"><div><strong>${s.name}</strong><div class="occ"><span class="badge ${occ==="Human"?"h":"a"}">${occ.toUpperCase()}</span></div></div>${st}</div>
+      <small class="mono">${line}</small>${alert&&!p?`<span class="alert-line">${alert}</span>`:""}
+      <div class="seat-foot"><small>Overseer: <strong>${s.ov}</strong> · ${s.samples} samples to review</small><button data-seat="${s.id}">${p?"Resume":"Pause"}</button></div></div>`;
+  }).join("");
+  const nP=SEATS.filter(s=>paused.has(s.id)).length;
+  const nA=SEATS.filter(s=>!paused.has(s.id)&&(s.id==="platform"?pending.length:s.alert)).length;
+  $("r-run").textContent=SEATS.length-nP;$("r-pause").textContent=nP;$("r-alert").textContent=nA;
+  const all=nP===SEATS.length;$("killBtn").textContent=all?"Resume everything":"Pause everything";$("killBtn").classList.toggle("kill",!all);
+}
+document.addEventListener("input",e=>{
+  if(!e.target.matches("input[type=range][data-i]")||crewPaused())return;
+  const a=agents[+e.target.dataset.i],others=total()-a.pct;
+  let v=+e.target.value;if(v+others>100){v=100-others;e.target.value=v;}
+  a.pct=v;
+  const row=e.target.closest(".row");
+  row.querySelector(".amt b").textContent=v+"%";row.querySelector(".amt small").textContent=usd(BUDGET*v/100)+"/mo";
+  stats();
+});
+document.addEventListener("change",e=>{
+  if(e.target.id==="lvl"){level=+e.target.value;addLog(OV,`set Platform Lead to L${level} · ${LEVELS[level]}`+(level===1?" · took the seat back":""));render();return;}
+  if(!e.target.matches("input[type=range][data-i]"))return;
+  const a=agents[+e.target.dataset.i];addLog(actor(),`set ${a.name} to ${a.pct}%`+tail());render();
+});
+document.addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b||b.disabled)return;
+  const d=b.dataset;
+  if(d.fire)request("bench",d.fire);
+  else if(d.rehire)request("rehire",d.rehire);
+  else if(b.id==="hireBtn"){if($("cat").value)request("hire",$("cat").value);}
+  else if(d.promote){const a=agents.find(x=>x.id===d.promote);if(!a)return;a.status="active";if(typeof a.score!=="number")a.score=80;
+    addLog("HR Agent",`passed ${a.name} ${a.ver} after 20 shadow jobs · now active`);render();}
+  else if(d.approve!==undefined){const[x]=pending.splice(+d.approve,1);const m=ACT[x.kind](x.id);addLog(OV,m?"approved: "+m:"could not apply: "+x.text);render();}
+  else if(d.reject!==undefined){const[x]=pending.splice(+d.reject,1);addLog(OV,"rejected: "+x.text);render();}
+  else if(b.id==="pauseBtn"){paused.add("platform");addLog(OV,"paused the Platform crew");render();}
+  else if(b.id==="resumeBtn"){paused.delete("platform");addLog(OV,"resumed the Platform crew");render();}
+  else if(d.seat){const s=SEATS.find(x=>x.id===d.seat);const who=s.ov==="Board"?"Board":s.ov+" (overseer)";
+    if(paused.has(s.id)){paused.delete(s.id);addLog(who,"resumed "+s.name);}else{paused.add(s.id);addLog(who,"paused "+s.name);}render();}
+  else if(b.id==="killBtn"){const all=SEATS.every(s=>paused.has(s.id));
+    if(all){paused.clear();addLog("Board","resumed everything");}else{SEATS.forEach(s=>paused.add(s.id));addLog("Board","pressed Pause everything · all agent seats stopped");}render();}
+});
+render();
+</script>
+</body>
+</html>
