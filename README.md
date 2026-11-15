@@ -3,6 +3,7 @@
 A design concept for running AI agents like an organization, with humans in control at every level.
 
 **Live page:** https://probita-ai.github.io/agent-org-model/
+**Architecture deep dive:** https://probita-ai.github.io/agent-org-model/architecture.html (text version: [docs/architecture.md](docs/architecture.md))
 
 ## The idea
 

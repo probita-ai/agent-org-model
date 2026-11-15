@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Architecture deep dive for the agent org model: one Jira ticket followed through every level, from board to coder, with estimation, PM clarification, capacity, risk gates and state machines.">
+<title>Agent Org Architecture</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#F4F6F9;--surface:#FFFFFF;--ink:#14202E;--muted:#5B6878;--line:#D3DAE3;--accent:#0E7C6B;
+  --human:#B45309;--human-bg:#FDF1E1;--exec:#1D4ED8;--exec-bg:#E7EDFC;--lead:#0E7C6B;--lead-bg:#E2F3EF;
+  --worker:#475569;--worker-bg:#EDF0F4;--staff:#9F1239;--staff-bg:#FBE7ED;--reserve:#7C8796;
+  --good:#15803D;--warn:#B45309;--crit:#B91C1C;
+  --f-display:"Space Grotesk",system-ui,sans-serif;--f-body:"Inter",system-ui,sans-serif;--f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0F151C;--surface:#17202A;--ink:#E6ECF2;--muted:#97A5B5;--line:#2B3644;--accent:#34C3A8;
+  --human:#F59E0B;--human-bg:#2E2110;--exec:#86A8FF;--exec-bg:#172342;--lead:#34C3A8;--lead-bg:#0F302A;
+  --worker:#AAB7C7;--worker-bg:#1F2934;--staff:#F47BA6;--staff-bg:#33141F;--reserve:#8592A1;
+  --good:#4ADE80;--warn:#FBBF24;--crit:#F87171;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F151C;--surface:#17202A;--ink:#E6ECF2;--muted:#97A5B5;--line:#2B3644;--accent:#34C3A8;
+  --human:#F59E0B;--human-bg:#2E2110;--exec:#86A8FF;--exec-bg:#172342;--lead:#34C3A8;--lead-bg:#0F302A;
+  --worker:#AAB7C7;--worker-bg:#1F2934;--staff:#F47BA6;--staff-bg:#33141F;--reserve:#8592A1;
+  --good:#4ADE80;--warn:#FBBF24;--crit:#F87171;color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.6 var(--f-body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 72px}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:64px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(30px,5vw,46px);font-weight:700;letter-spacing:-.02em}
+h2{font-size:26px;font-weight:600}
+h3{font-size:16px;font-weight:600}
+p{margin:0;max-width:72ch}
+a{color:var(--accent)}
+.eyebrow{font:500 12px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.lede{color:var(--muted);font-size:17px}
+section{display:flex;flex-direction:column;gap:18px;scroll-margin-top:20px}
+header{display:flex;flex-direction:column;gap:14px}
+code{font-family:var(--f-mono);font-size:.92em}
+.muted{color:var(--muted)}
+.back{font:500 13px var(--f-mono);text-decoration:none}
+
+.toc{display:flex;flex-wrap:wrap;gap:8px}
+.toc a{font:500 12.5px var(--f-mono);padding:5px 11px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);text-decoration:none}
+.toc a:hover{border-color:var(--accent);color:var(--accent)}
+
+/* diagrams */
+.chart{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow-x:auto}
+.chart svg{display:block;width:100%;min-width:900px;height:auto}
+.cap{padding:12px 18px;border-top:1px solid var(--line);font-size:13px;color:var(--muted);min-width:900px}
+svg text{font-family:var(--f-body);fill:var(--ink)}
+svg .t{font:600 14px var(--f-display)}
+svg .s{font-size:11px;fill:var(--muted)}
+svg .c{font-size:11.5px}
+svg .cm{font:500 11px var(--f-mono);fill:var(--muted)}
+svg .lbl{font:500 10px var(--f-mono);letter-spacing:.12em;fill:var(--muted)}
+svg .ln{stroke:var(--muted);stroke-width:1.4;fill:none}
+svg .ar{marker-end:url(#ah)}
+svg .dash{stroke-dasharray:5 4}
+svg .kill{stroke:var(--crit);stroke-width:1.6;fill:none;stroke-dasharray:6 4;marker-end:url(#ahc)}
+svg .life{stroke:var(--line);stroke-width:1.4;stroke-dasharray:4 5}
+svg .acc{stroke:var(--accent)}
+.n-human rect{fill:var(--human-bg);stroke:var(--human);stroke-width:1.5}
+.n-exec rect{fill:var(--exec-bg);stroke:var(--exec);stroke-width:1.5}
+.n-lead rect{fill:var(--lead-bg);stroke:var(--lead);stroke-width:1.5}
+.n-worker rect{fill:var(--worker-bg);stroke:var(--worker);stroke-width:1}
+.n-staff rect{fill:var(--staff-bg);stroke:var(--staff);stroke-width:1.5}
+.n-reserve rect{fill:var(--surface);stroke:var(--reserve);stroke-width:1.5;stroke-dasharray:6 4}
+.n-plat rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.plat{fill:var(--bg);stroke:var(--line)}
+.chip rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.2}
+.chip text{font:500 11.5px var(--f-mono)}
+.legend{display:flex;flex-wrap:wrap;gap:10px 22px;padding:14px 18px;border-top:1px solid var(--line);font-size:13px;color:var(--muted);min-width:900px}
+.legend span{display:inline-flex;align-items:center;gap:8px}
+.sw{width:14px;height:14px;border-radius:4px;border:1.5px solid}
+
+/* cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;min-width:0;border-top:3px solid var(--line)}
+.card.h{border-top-color:var(--human)}.card.l{border-top-color:var(--lead)}.card.w{border-top-color:var(--worker)}.card.st{border-top-color:var(--staff)}
+.card .top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.card dl{margin:0;display:grid;grid-template-columns:86px 1fr;gap:6px 12px;font-size:13.5px}
+.card dt{font:500 11px/1.9 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.card dd{margin:0}
+.badge{display:inline-block;font:600 10.5px/1.4 var(--f-mono);letter-spacing:.05em;padding:1px 7px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.badge.h{color:var(--human)}.badge.a{color:var(--exec)}.badge.st{color:var(--staff)}
+
+/* briefs */
+.briefs{display:grid;grid-template-columns:repeat(5,minmax(180px,1fr));gap:10px;overflow-x:auto;padding-bottom:4px}
+.brief{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;min-width:180px}
+.brief h3{font-size:14px}
+.brief .inh{font:500 11px var(--f-mono);color:var(--muted);padding:6px 8px;border:1px dashed var(--line);border-radius:6px}
+.brief ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:12.5px;line-height:1.45}
+.brief li{padding-left:10px;border-left:2px solid var(--accent)}
+.brief li b{display:block;font:500 10.5px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+
+/* tables + code */
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:13.5px}
+th,td{text-align:left;padding:10px 14px;border-top:1px solid var(--line);vertical-align:top}
+thead th{border-top:0;font:500 11.5px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+td:first-child{font-weight:600}
+td.n{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+pre{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;overflow-x:auto;font:12.5px/1.6 var(--f-mono)}
+pre .k{color:var(--exec)}pre .c{color:var(--muted)}pre .v{color:var(--accent)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+.two>*{min-width:0}
+.rules{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.rules li{padding-left:14px;border-left:2px solid var(--accent)}
+.rules li b{display:block;font-family:var(--f-display);font-weight:600}
+.rules li span{color:var(--muted);font-size:14px}
+.callout{background:var(--human-bg);border:1px solid var(--line);border-left:3px solid var(--human);border-radius:10px;padding:14px 18px;font-size:14.5px}
+footer{color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:20px}
+
+@media (max-width:760px){
+  .two{grid-template-columns:1fr}
+  .card dl{grid-template-columns:1fr}
+  .card dt{line-height:1.2;margin-top:4px}
+}
+</style>
+</head>
+<body>
+
+<!-- shared arrowheads -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker>
+    <marker id="ahc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--crit)"/></marker>
+  </defs>
+</svg>
+
+<div class="wrap">
+
+<header>
+  <a class="back" href="./">← Concept page</a>
+  <span class="eyebrow">Agent org model · architecture deep dive</span>
+  <h1>One Jira ticket, followed through every level of the org</h1>
+  <p class="lede">This page traces <b>PLAT-412 “Rate limit the public /export API”</b> from the board’s quarterly goal down to merged code in production. At each level it shows what the seat receives, what it decides and what it passes on. It also covers how the coder works through the ticket, talks to the PM and estimates the work.</p>
+  <nav class="toc" aria-label="Sections">
+    <a href="#system">System</a><a href="#journey">Ticket journey</a><a href="#levels">Every level</a>
+    <a href="#coder">Coder phases</a><a href="#pm">Coder ↔ PM</a><a href="#estimate">Estimation</a>
+    <a href="#briefs">Context</a><a href="#capacity">Capacity</a><a href="#gates">Risk gates</a>
+    <a href="#states">State machines</a><a href="#scores">Scorecards</a><a href="#failures">Failures</a><a href="#build">Build order</a>
+  </nav>
+</header>
+
+<!-- ============ 1. SYSTEM ============ -->
+<section id="system">
+  <span class="eyebrow">1 · The big picture</span>
+  <h2>Agents run in one layer. Everything that limits them is plain software.</h2>
+  <p>Agents never call the outside world directly. Every tool call passes the policy engine and every model call passes the metered gateway. The kill switch revokes keys at those two points, so stopping an agent never depends on the agent cooperating.</p>
+  <div class="chart">
+  <svg viewBox="0 0 1080 560" role="img" aria-label="Five layers: Control Room website on top; control plane with org and seats, capacity, policy engine, approvals, ledger and scorecards; runtime with orchestrator, agent workers, sandboxes, model gateway and tool proxy; knowledge stores; and integrations reached only through the tool proxy. A kill switch line runs from the Control Room to the gateway and tool proxy.">
+    <!-- UI -->
+    <g class="n-human"><rect x="20" y="16" width="1040" height="60" rx="10"/>
+      <text class="t" x="540" y="41" text-anchor="middle">Control Room · the website humans use</text>
+      <text class="s" x="540" y="60" text-anchor="middle">Org chart · crew lead console · approvals inbox · ledger viewer · kill switch</text></g>
+
+    <path class="ln ar" d="M300 76V112"/>
+    <text class="c" x="310" y="99">humans approve, pause, roll back</text>
+    <text class="c" x="1024" y="99" text-anchor="end" style="fill:var(--crit)">kill switch: revoke model keys + tool tokens</text>
+
+    <!-- control plane -->
+    <rect class="plat" x="20" y="112" width="1040" height="120" rx="12"/>
+    <text class="lbl" x="36" y="132">CONTROL PLANE · NO MODEL IN THE DECISION PATH</text>
+    <g class="n-staff"><rect x="30" y="146" width="152" height="64" rx="10"/><text class="t" x="106" y="173" text-anchor="middle">Org &amp; seats</text><text class="s" x="106" y="192" text-anchor="middle">who sits where</text></g>
+    <g class="n-staff"><rect x="196" y="146" width="152" height="64" rx="10"/><text class="t" x="272" y="173" text-anchor="middle">Capacity</text><text class="s" x="272" y="192" text-anchor="middle">shares, reservations</text></g>
+    <g class="n-staff"><rect x="362" y="146" width="152" height="64" rx="10"/><text class="t" x="438" y="173" text-anchor="middle">Policy engine</text><text class="s" x="438" y="192" text-anchor="middle">allow · gate · refuse</text></g>
+    <g class="n-staff"><rect x="528" y="146" width="152" height="64" rx="10"/><text class="t" x="604" y="173" text-anchor="middle">Approvals</text><text class="s" x="604" y="192" text-anchor="middle">inbox, permits, SLAs</text></g>
+    <g class="n-staff"><rect x="694" y="146" width="152" height="64" rx="10"/><text class="t" x="770" y="173" text-anchor="middle">Ledger</text><text class="s" x="770" y="192" text-anchor="middle">append-only, rollback</text></g>
+    <g class="n-staff"><rect x="860" y="146" width="152" height="64" rx="10"/><text class="t" x="936" y="173" text-anchor="middle">Scorecards</text><text class="s" x="936" y="192" text-anchor="middle">HR signals, reviews</text></g>
+
+    <path class="ln ar" d="M300 232V272"/>
+    <text class="c" x="310" y="256">limits · approvals · policy decisions</text>
+    <path class="ln ar" d="M702 272V232"/>
+    <text class="c" x="712" y="256">every call metered into capacity</text>
+
+    <!-- runtime -->
+    <rect class="plat" x="20" y="272" width="1040" height="120" rx="12"/>
+    <text class="lbl" x="36" y="292">RUNTIME · WHERE AGENTS RUN</text>
+    <g class="n-plat"><rect x="30" y="306" width="180" height="64" rx="10"/><text class="t" x="120" y="333" text-anchor="middle">Orchestrator</text><text class="s" x="120" y="352" text-anchor="middle">durable jobs, stop rules</text></g>
+    <g class="n-worker"><rect x="224" y="306" width="180" height="64" rx="10"/><text class="t" x="314" y="333" text-anchor="middle">Agent workers</text><text class="s" x="314" y="352" text-anchor="middle">run one step at a time</text></g>
+    <g class="n-plat"><rect x="418" y="306" width="180" height="64" rx="10"/><text class="t" x="508" y="333" text-anchor="middle">Sandboxes</text><text class="s" x="508" y="352" text-anchor="middle">per job, no prod secrets</text></g>
+    <g class="n-plat"><rect x="612" y="306" width="180" height="64" rx="10"/><text class="t" x="702" y="333" text-anchor="middle">Model gateway</text><text class="s" x="702" y="352" text-anchor="middle">meters every model call</text></g>
+    <g class="n-plat"><rect x="806" y="306" width="180" height="64" rx="10"/><text class="t" x="896" y="333" text-anchor="middle">Tool proxy</text><text class="s" x="896" y="352" text-anchor="middle">seat-scoped tokens</text></g>
+
+    <!-- kill switch -->
+    <path class="kill" d="M1036 76V294H896V306"/>
+    <path class="kill" d="M896 294H702V306"/>
+
+    <path class="ln ar" d="M314 392V432"/>
+    <text class="c" x="324" y="416">read context, propose lessons</text>
+    <path class="ln ar" d="M896 392V432"/>
+    <text class="c" x="906" y="416">all external calls</text>
+
+    <!-- knowledge -->
+    <rect class="plat" x="20" y="432" width="520" height="112" rx="12"/>
+    <text class="lbl" x="36" y="452">KNOWLEDGE</text>
+    <g class="n-plat"><rect x="34" y="464" width="156" height="62" rx="10"/><text class="t" x="112" y="490" text-anchor="middle">Work items</text><text class="s" x="112" y="509" text-anchor="middle">docs, threads, decisions</text></g>
+    <g class="n-plat"><rect x="202" y="464" width="156" height="62" rx="10"/><text class="t" x="280" y="490" text-anchor="middle">Crew memory</text><text class="s" x="280" y="509" text-anchor="middle">lessons, conventions</text></g>
+    <g class="n-plat"><rect x="370" y="464" width="156" height="62" rx="10"/><text class="t" x="448" y="490" text-anchor="middle">Job history</text><text class="s" x="448" y="509" text-anchor="middle">actuals for estimates</text></g>
+
+    <!-- integrations -->
+    <rect class="plat" x="560" y="432" width="500" height="112" rx="12"/>
+    <text class="lbl" x="576" y="452">INTEGRATIONS · ONLY VIA THE TOOL PROXY</text>
+    <g class="n-plat"><rect x="570" y="464" width="88" height="62" rx="10"/><text class="t" x="614" y="490" text-anchor="middle">Jira</text><text class="s" x="614" y="509" text-anchor="middle">tickets</text></g>
+    <g class="n-plat"><rect x="668" y="464" width="88" height="62" rx="10"/><text class="t" x="712" y="490" text-anchor="middle">GitHub</text><text class="s" x="712" y="509" text-anchor="middle">code, PRs</text></g>
+    <g class="n-plat"><rect x="766" y="464" width="88" height="62" rx="10"/><text class="t" x="810" y="490" text-anchor="middle">CI</text><text class="s" x="810" y="509" text-anchor="middle">tests</text></g>
+    <g class="n-plat"><rect x="864" y="464" width="88" height="62" rx="10"/><text class="t" x="908" y="490" text-anchor="middle">Slack</text><text class="s" x="908" y="509" text-anchor="middle">notify</text></g>
+    <g class="n-plat"><rect x="962" y="464" width="88" height="62" rx="10"/><text class="t" x="1006" y="490" text-anchor="middle">Deploy</text><text class="s" x="1006" y="509" text-anchor="middle">flags, prod</text></g>
+  </svg>
+  <div class="legend">
+    <span><i class="sw" style="background:var(--human-bg);border-color:var(--human)"></i>Humans</span>
+    <span><i class="sw" style="background:var(--staff-bg);border-color:var(--staff)"></i>Control plane (deterministic)</span>
+    <span><i class="sw" style="background:var(--worker-bg);border-color:var(--worker)"></i>Agents</span>
+    <span><i class="sw" style="background:var(--surface);border-color:var(--line)"></i>Platform services</span>
+    <span style="color:var(--crit)">- - → kill switch path</span>
+  </div>
+  </div>
+  <ul class="rules">
+    <li><b>Authority flows down only</b><span>A seat can grant at most what it holds. No seat raises its own capacity, autonomy or permissions.</span></li>
+    <li><b>Every change has a before-state</b><span>Rollback is a ledger operation, not a request to an agent.</span></li>
+    <li><b>Humans are a budgeted resource</b><span>Human minutes are reserved and metered like dollars, because they’re usually what runs out first.</span></li>
+  </ul>
+</section>
+
+<!-- ============ 2. JOURNEY ============ -->
+<section id="journey">
+  <span class="eyebrow">2 · The ticket journey</span>
+  <h2>What each level adds before handing the work down</h2>
+  <p>Every level turns what it received into something more concrete. Questions go back up to whoever owns the decision. Here the coder and the tester both ask the PM, because they’re questions about product behaviour.</p>
+  <div class="chart">
+  <svg viewBox="0 0 1080 750" role="img" aria-label="Ten levels from Board to HR, each with what it does and what it hands down: Board sets $10,000 and the goal; CEO gives Engineering 40%; CTO creates the epic and gives Platform 60%; PM writes PLAT-412; Platform Lead assigns coder-1; Coder produces PR 1187 at 5 points; Tester adds tests; Reviewer approves; Release rolls out in stages; HR records actuals. Coder and tester send questions back to the PM.">
+    <text class="lbl" x="60" y="18">SEAT</text><text class="lbl" x="270" y="18">WHAT IT DOES</text><text class="lbl" x="740" y="18">HANDS DOWN</text>
+    <!-- question loops -->
+    <path class="ln ar acc" d="M60 405H42V255H60"/>
+    <path class="ln ar acc" d="M60 475H28V237H60"/>
+    <text class="cm" x="20" y="330" transform="rotate(-90 20 330)" text-anchor="middle" style="fill:var(--accent)">questions to the PM</text>
+
+    <g id="jrows"></g>
+  </svg>
+  <div class="legend">
+    <span><i class="sw" style="background:var(--human-bg);border-color:var(--human)"></i>Human seat</span>
+    <span><i class="sw" style="background:var(--lead-bg);border-color:var(--lead)"></i>Agent crew lead</span>
+    <span><i class="sw" style="background:var(--worker-bg);border-color:var(--worker)"></i>Worker agent</span>
+    <span><i class="sw" style="background:var(--staff-bg);border-color:var(--staff)"></i>Staff function</span>
+    <span><i class="sw" style="background:var(--surface);border-color:var(--accent)"></i>Artifact passed down</span>
+  </div>
+  </div>
+</section>
+
+<!-- ============ 3. LEVELS ============ -->
+<section id="levels">
+  <span class="eyebrow">3 · Every level, in detail</span>
+  <h2>Each seat uses the same card: in, decides, out, escalates, scored on</h2>
+  <div class="cards" id="cards"></div>
+  <div class="callout"><b>Sprints run out of human minutes before dollars.</b> In planning, the lead fills the sprint until the <i>P90</i> cost reaches the crew’s capacity minus a 15% reserve ($980 of $1,020). It then drops PLAT-421 because PM minutes came to 410 against Dana’s 300 per week. The lead has to fit both budgets.</div>
+</section>
+
+<!-- ============ 4. CODER ============ -->
+<section id="coder">
+  <span class="eyebrow">4 · Inside the coder seat</span>
+  <h2>Twelve phases, each a resumable step with its own trace and cost</h2>
+  <p>The coder never starts writing code from the raw ticket. It first maps every acceptance criterion to a test; any criterion it can’t test is marked ambiguous and goes to the PM. This one rule catches most unclear tickets. For medium-risk work the reviewer approves the plan before any code is written, which costs about $0.40 and avoids $15 spent on the wrong approach.</p>
+  <div class="chart">
+  <svg viewBox="0 0 1080 470" role="img" aria-label="Coder phases in a snake: A Intake, B Understand, C Ready check with a loop to D Clarify with PM, E Estimate, F Plan, G Implement; then H Self-check, I Hand off, J Review loop, K Release gate, L Close and learn, ending in crew memory. Self-check failure and review changes loop back to Implement. A strip lists hard stop rules.">
+    <g id="phases"></g>
+    <!-- row 1 arrows -->
+    <path class="ln ar" d="M175 145H201"/><path class="ln ar" d="M351 145H377"/><path class="ln ar" d="M527 145H553"/><path class="ln ar" d="M703 145H729"/><path class="ln ar" d="M879 145H905"/>
+    <!-- clarify loop -->
+    <path class="ln ar" d="M432 110V72"/><path class="ln ar" d="M472 72V110"/>
+    <text class="cm" x="426" y="95" text-anchor="end">not ready</text>
+    <text class="cm" x="478" y="95">answered</text>
+    <!-- down to row 2 + loops -->
+    <path class="ln ar" d="M1030 180V270"/>
+    <path class="ln ar" d="M962 270V180"/><text class="cm" x="968" y="232">fail</text>
+    <path class="ln ar" d="M628 270V226H930V180"/><text class="cm" x="779" y="220" text-anchor="middle">changes requested (max 3 rounds)</text>
+    <!-- row 2 arrows -->
+    <path class="ln ar" d="M905 305H879"/><path class="ln ar" d="M729 305H703"/><path class="ln ar" d="M553 305H527"/><path class="ln ar" d="M377 305H351"/><path class="ln ar" d="M201 305H175"/>
+
+    <rect class="plat" x="25" y="378" width="1030" height="76" rx="12"/>
+    <text class="lbl" x="41" y="398">HARD STOP RULES · ENFORCED BY THE ORCHESTRATOR, NOT THE PROMPT</text>
+    <g id="stops"></g>
+  </svg>
+  </div>
+
+  <div class="two">
+    <div>
+      <h3 style="margin-bottom:10px">Phase B output: the understanding doc</h3>
+<pre><span class="k">restated_goal:</span> Stop any single caller overloading /export,
+  limits by plan tier, rejections visible.
+<span class="k">acceptance_criteria_mapped:</span>
+  - 429 + Retry-After     → burst test       <span class="v">clear</span>
+  - per plan tier         → ?                <span class="v">AMBIGUOUS</span>
+  - dashboard shows count → ?                <span class="v">AMBIGUOUS</span>
+<span class="k">code_map:</span>
+  entry: src/routes/export.ts
+  pattern: src/middleware/internalRateLimit.ts <span class="c"># ADR-017</span>
+<span class="k">blast_radius:</span> platform-api only · no migration
+<span class="k">assumptions_if_unanswered:</span>
+  - key = API key
+  - internal tokens bypass</pre>
+    </div>
+    <div>
+      <h3 style="margin-bottom:10px">Phase I output: brief to the reviewer</h3>
+<pre><span class="k">pr:</span> platform-api#1187
+<span class="k">summary:</span> Org-keyed token bucket on /export,
+  tier limits, 429 + Retry-After, metric.
+<span class="k">decisions_to_respect:</span>
+  - Keyed by <span class="v">org</span>, decided by Dana (PM)
+    on msg_412_q1. <span class="c">Not a bug.</span>
+<span class="k">deviations_from_plan:</span> none
+<span class="k">where_to_look_hardest:</span>
+  - tier cache invalidation
+    exportRateLimit.ts:40-72
+<span class="k">self_check:</span> all passed
+<span class="k">cost_so_far_usd:</span> 12.10</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 5. PM ============ -->
+<section id="pm">
+  <span class="eyebrow">5 · Discussing with the PM</span>
+  <h2>One batch of questions, each with options and a default</h2>
+  <p>The coder asks everything in one message, tags each question as blocking or not, and says how many PM minutes it expects the questions to take. A PM-assist agent first answers what it can from the docs. In this case Dana picks an answer the coder didn’t expect (limit per <b>org</b>, not per API key), which is why asking beats assuming. The coder can suggest new acceptance-criteria wording, but only the PM can accept it.</p>
+  <div class="chart">
+  <svg viewBox="0 0 1080 660" role="img" aria-label="Sequence: Coder-1 posts a question batch to the thread; PM-assist checks docs and suggests an answer for q4; the thread notifies Dana; Dana answers, choosing organization as the limit key; the thread sends a binding decision to the coder; the coder updates its understanding doc and proposes rewritten acceptance criteria; Dana accepts; the thread tells the Platform Lead the ticket is ready.">
+    <g class="n-worker"><rect x="10" y="16" width="160" height="50" rx="10"/><text class="t" x="90" y="38" text-anchor="middle">Coder-1</text><text class="s" x="90" y="55" text-anchor="middle">agent · L3</text></g>
+    <g class="n-plat"><rect x="250" y="16" width="160" height="50" rx="10"/><text class="t" x="330" y="38" text-anchor="middle">Thread · Jira</text><text class="s" x="330" y="55" text-anchor="middle">platform</text></g>
+    <g class="n-worker"><rect x="490" y="16" width="160" height="50" rx="10"/><text class="t" x="570" y="38" text-anchor="middle">PM-assist</text><text class="s" x="570" y="55" text-anchor="middle">agent · L2</text></g>
+    <g class="n-human"><rect x="720" y="16" width="160" height="50" rx="10"/><text class="t" x="800" y="38" text-anchor="middle">Dana · PM</text><text class="s" x="800" y="55" text-anchor="middle">human</text></g>
+    <g class="n-lead"><rect x="910" y="16" width="160" height="50" rx="10"/><text class="t" x="990" y="38" text-anchor="middle">Platform Lead</text><text class="s" x="990" y="55" text-anchor="middle">agent · L2</text></g>
+    <path class="life" d="M90 66V592M330 66V592M570 66V592M800 66V592M990 66V592"/>
+
+    <path class="ln ar" d="M90 110H330"/><text class="c" x="210" y="102" text-anchor="middle">question_batch · 4 Qs · ~4 PM min</text>
+    <path class="ln ar" d="M330 154H570"/><text class="c" x="450" y="146" text-anchor="middle">new questions on PLAT-412</text>
+    <path class="ln ar" d="M570 186h32v22h-32"/><text class="c" x="612" y="202">checks docs + past decisions</text>
+    <path class="ln ar dash" d="M570 250H330"/><text class="c" x="450" y="242" text-anchor="middle">suggests q4: yes, per ADR-017</text>
+    <path class="ln ar" d="M330 294H800"/><text class="c" x="565" y="286" text-anchor="middle">notify: 2 blocking, defaults ready</text>
+    <path class="ln ar" d="M800 338H330"/><text class="c" x="565" y="330" text-anchor="middle" style="fill:var(--human);font-weight:600">q1 → b (organization) · q2 a · q3 a · q4 confirmed</text>
+    <path class="ln ar" d="M330 382H90"/><text class="c" x="210" y="374" text-anchor="middle">decision event · binding context</text>
+    <path class="ln ar" d="M90 410h32v22h-32"/><text class="c" x="132" y="426">updates understanding doc</text>
+    <path class="ln ar" d="M90 474H330"/><text class="c" x="210" y="466" text-anchor="middle">proposal: rewrite AC #2</text>
+    <path class="ln ar" d="M330 502H800"/><text class="c" x="565" y="494" text-anchor="middle">only the PM can change acceptance criteria</text>
+    <path class="ln ar" d="M800 540H330"/><text class="c" x="565" y="532" text-anchor="middle">accepts “limits per plan tier, keyed by organization”</text>
+    <path class="ln ar" d="M330 580H990"/><text class="c" x="660" y="572" text-anchor="middle">work_item.ready · Definition of Ready passed</text>
+
+    <g class="n-reserve"><rect x="10" y="604" width="1060" height="44" rx="10"/>
+      <text class="c" x="540" y="631" text-anchor="middle">No answer in 1 business day → non-blocking questions proceed on defaults, marked as assumptions on the ticket · blocking ones go to the lead or the PM’s backup</text></g>
+  </svg>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th>Question about</th><th>Decision owner</th><th>Why it matters</th></tr></thead>
+    <tbody>
+      <tr><td>What the product does (AC, scope, behaviour)</td><td>PM seat</td><td>The tester’s “fail open or closed when Redis is down?” went to Dana, not the coder</td></tr>
+      <tr><td>How to build it</td><td>Coder (within the plan)</td><td>Reviewer can object once; then the owner decides</td></tr>
+      <tr><td>Is it good enough</td><td>Reviewer</td><td>10% sampled by a human (Sam)</td></tr>
+      <tr><td>Priority, assignment, capacity</td><td>Crew lead</td><td>At L2, Priya approves each proposal</td></tr>
+      <tr><td>Production change</td><td>Overseer (human)</td><td>Always approve-first</td></tr>
+    </tbody></table></div>
+  <ul class="rules">
+    <li><b>Batch, don’t drip</b><span>All questions in one message. coder-agent v3.1 asked one at a time and was retrained.</span></li>
+    <li><b>Options plus a default</b><span>The PM can answer with one click.</span></li>
+    <li><b>Disagreement ends in 2 messages</b><span>Objection, one reply, then the decision owner decides. The decision is recorded and binding.</span></li>
+  </ul>
+</section>
+
+<!-- ============ 6. ESTIMATION ============ -->
+<section id="estimate">
+  <span class="eyebrow">6 · Estimation</span>
+  <h2>Points for people, P50/P90 for the budget, minutes for the humans</h2>
+  <p>An agent estimate has four parts: story points, so humans and agents share one scale; agent cost as P50 and P90, which sets the budget reservation; wall-clock time; and human minutes, which are often the real limit. The method starts from similar past jobs, applies written-down adjustments, then has three seats estimate blind.</p>
+  <div class="chart">
+  <svg viewBox="0 0 1080 370" role="img" aria-label="Six estimation steps: extract features, reference class, adjust, cross-check, blind estimates, one round of reasons, producing 5 points, $14 to $28. Below, bars of five past jobs' actual cost, and a cost scale showing base $12, P50 $14, P90 $28 and actual $13.20, with blind estimates coder 5, tester 5, reviewer 8, final 5.">
+    <g id="est"></g>
+    <path class="ln ar" d="M158 82H172"/><path class="ln ar" d="M308 82H322"/><path class="ln ar" d="M458 82H472"/><path class="ln ar" d="M608 82H622"/><path class="ln ar" d="M758 82H772"/><path class="ln ar" d="M908 82H922"/>
+    <text class="cm" x="765" y="34" text-anchor="middle">if spread &gt; 1 step</text>
+
+    <rect class="plat" x="22" y="160" width="500" height="196" rx="12"/>
+    <text class="lbl" x="40" y="184">REFERENCE CLASS · ACTUAL COST OF SIMILAR JOBS</text>
+    <g id="refbars"></g>
+
+    <rect class="plat" x="540" y="160" width="518" height="196" rx="12"/>
+    <text class="lbl" x="558" y="184">PLAT-412 · ESTIMATE VS ACTUAL</text>
+    <rect x="731" y="232" width="161" height="18" rx="4" style="fill:var(--exec-bg);stroke:var(--exec)"/>
+    <path class="ln" d="M570 250H1030"/>
+    <g id="ticks"></g>
+    <path d="M708 226V256" style="stroke:var(--muted);stroke-width:1.4;stroke-dasharray:3 3"/><text class="cm" x="704" y="222" text-anchor="end">base $12</text>
+    <text class="cm" x="735" y="222" style="fill:var(--exec)">P50 $14</text>
+    <text class="cm" x="892" y="222" text-anchor="middle" style="fill:var(--exec)">P90 $28</text>
+    <path d="M722 234l7 7-7 7-7-7z" style="fill:var(--good)"/>
+    <text class="cm" x="722" y="290" text-anchor="middle" style="fill:var(--good)">actual $13.20 ✓</text>
+    <text class="c" x="558" y="325">Blind:</text>
+    <g id="poker"></g>
+  </svg>
+  </div>
+  <div class="two">
+<pre><span class="c"># step 3: every adjustment is written down</span>
+base P50 (weighted median, ref class)  <span class="v">$12.00</span>
+× 1.15  external call with no cache
+× 1.05  customer-facing (flag + rollout)
+P50                                    <span class="v">≈ $14.00</span>
+× 2.0   spread (coder-1's own history)
+P90                                    <span class="v">$28.00</span>
+
+<span class="c"># human minutes, budgeted separately</span>
+PM questions + acceptance      5
+reviewer (as if sampled)      15
+overseer release approval     10
+expected tester questions      3
+buffer                        12
+P90 total                     <span class="v">45 min</span></pre>
+    <div class="tbl"><table style="min-width:0">
+      <thead><tr><th>Must split when</th><th>Threshold</th></tr></thead>
+      <tbody>
+        <tr><td>Points</td><td class="n">&gt; 8</td></tr>
+        <tr><td>P90 cost</td><td class="n">&gt; $40</td></tr>
+        <tr><td>P90 wall clock</td><td class="n">&gt; 3 days</td></tr>
+        <tr><td>Services touched</td><td class="n">&gt; 2</td></tr>
+        <tr><td>Migration + behaviour change</td><td class="n">both</td></tr>
+        <tr><td>Low confidence</td><td class="n">and ≥ 5 pts</td></tr>
+      </tbody></table></div>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th>Calibration (rolling 30 jobs)</th><th>Target</th><th>coder-1</th><th>Used for</th></tr></thead>
+    <tbody>
+      <tr><td>Median actual ÷ P50</td><td class="n">0.9 – 1.1</td><td class="n">0.96</td><td>Scorecard; catches under- and over-estimating</td></tr>
+      <tr><td>P90 hit rate</td><td class="n">≥ 88%</td><td class="n">91%</td><td>Sets the agent’s spread factor, so well-calibrated agents get tighter ranges</td></tr>
+      <tr><td>Point error ≥ 2 steps</td><td class="n">≤ 10%</td><td class="n">6%</td><td>The reviewer assigns actual points afterwards, which discourages point inflation</td></tr>
+    </tbody></table></div>
+</section>
+
+<!-- ============ 7. BRIEFS ============ -->
+<section id="briefs">
+  <span class="eyebrow">7 · Context and memory</span>
+  <h2>Each handoff adds context. Nothing is just forwarded.</h2>
+  <p>Long chains of agents lose context at every handoff. Briefs are the fix: each has fixed fields, links to sources instead of pasting summaries, and every level adds what only it knows. Anything recorded as a <code>decision</code> is added to the context of every later step on that ticket.</p>
+  <div class="briefs">
+    <div class="brief"><span class="eyebrow">CTO → Lead</span><h3>Goal</h3><ul>
+      <li><b>goal</b>−50% customer-facing API incidents</li>
+      <li><b>epic</b>PLAT-EPIC-40</li><li><b>metric</b>export 5xx &lt; 0.1%</li></ul></div>
+    <div class="brief"><span class="eyebrow">PM → Lead</span><h3>Story</h3><div class="inh">+ inherits 3 fields</div><ul>
+      <li><b>why</b>Scrapers caused 3 export incidents in October</li>
+      <li><b>acceptance</b>429 + Retry-After · per tier · visible counts</li></ul></div>
+    <div class="brief"><span class="eyebrow">Lead → Coder</span><h3>Assignment</h3><div class="inh">+ inherits 5 fields</div><ul>
+      <li><b>constraints</b>Existing Redis only · don’t change response schema</li>
+      <li><b>known context</b>ADR-017 token bucket · tiers at billing /v1/plans</li>
+      <li><b>budget</b>$20 reservation · sprint 23</li></ul></div>
+    <div class="brief"><span class="eyebrow">Thread → Coder</span><h3>Decisions</h3><div class="inh">+ inherits 8 fields</div><ul>
+      <li><b>decided · Dana</b>Key by organization</li>
+      <li><b>decided · Dana</b>Free 10 · Pro 60 · Ent 600 /min</li>
+      <li><b>decided · Dana</b>Emit metric; ops owns dashboard</li>
+      <li><b>decided · Dana</b>Fail open, alert ops</li></ul></div>
+    <div class="brief"><span class="eyebrow">Coder → Reviewer</span><h3>Handoff</h3><div class="inh">+ inherits 12 fields</div><ul>
+      <li><b>respect</b>Org key is a decision, not a bug</li>
+      <li><b>look hardest</b>Tier cache invalidation</li>
+      <li><b>deviations</b>None · cost so far $12.10</li></ul></div>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th>Memory tier</th><th>Contents</th><th>Lifetime</th><th>Who writes</th></tr></thead>
+    <tbody>
+      <tr><td>Job scratch</td><td>Exploration notes, sandbox state</td><td>Dies with the job (trace kept)</td><td>Agent in the job</td></tr>
+      <tr><td>Work item</td><td>Understanding doc, thread, decisions, estimate, plan</td><td>Life of the ticket</td><td>Seats in the job</td></tr>
+      <tr><td>Crew memory</td><td>Conventions, lessons, reference classes</td><td>Until the lead retires it</td><td>Any seat proposes; lead approves</td></tr>
+      <tr><td>Org knowledge</td><td>ADRs, docs, policies, goals</td><td>Versioned</td><td>Humans, or agents via change set</td></tr>
+    </tbody></table></div>
+</section>
+
+<!-- ============ 8. CAPACITY ============ -->
+<section id="capacity">
+  <span class="eyebrow">8 · Capacity enforcement</span>
+  <h2>Shares flow down by percentage; each job reserves its P90</h2>
+  <p>The monthly share caps a seat’s total spend, and each job also reserves its own budget. At 80% of the reservation the agent pauses at the next step boundary and must re-estimate. At 100% the gateway refuses further model calls. The lead can top a job up from the crew reserve, but only within its own authority.</p>
+  <div class="chart">
+  <svg viewBox="0 0 1080 420" role="img" aria-label="Three zooming stacked bars: Board $10,000 split into Engineering 40%, Product 20%, Support 25%, Reserve 15%; Engineering $4,000 split into Platform crew 60% and other crews 40%; Platform $2,400 split into coder-1 40%, tester 15%, reviewer 15%, lead 10%, reserve 20%. Below, one job's $28 reservation with $13.20 spent, an 80% pause line and a 100% hard stop.">
+    <text class="lbl" x="40" y="30">BOARD · $10,000 / MONTH</text>
+    <polygon points="40,84 440,84 1040,130 40,130" style="fill:var(--exec-bg);opacity:.55"/>
+    <polygon points="40,174 640,174 1040,220 40,220" style="fill:var(--lead-bg);opacity:.6"/>
+    <g id="capbars"></g>
+    <text class="lbl" x="40" y="314">ONE JOB · job_8f21 · RESERVATION $28 = P90 ESTIMATE</text>
+    <rect x="40" y="324" width="1000" height="30" rx="6" style="fill:var(--worker-bg)"/>
+    <rect x="40" y="324" width="471" height="30" rx="6" style="fill:var(--accent)"/>
+    <text class="cm" x="52" y="344" style="fill:var(--surface);font-weight:600">spent $13.20</text>
+    <path d="M840 318V360" style="stroke:var(--warn);stroke-width:2;stroke-dasharray:4 3"/>
+    <path d="M1040 318V360" style="stroke:var(--crit);stroke-width:2.5"/>
+    <text class="cm" x="840" y="378" text-anchor="middle" style="fill:var(--warn)">80% · pause + re-estimate</text>
+    <text class="cm" x="1040" y="398" text-anchor="end" style="fill:var(--crit)">100% · gateway refuses calls</text>
+    <text class="cm" x="40" y="378" style="fill:var(--muted)">unused $14.80 returns to the seat on close</text>
+  </svg>
+  </div>
+</section>
+
+<!-- ============ 9. GATES ============ -->
+<section id="gates">
+  <span class="eyebrow">9 · Risk gates and permits</span>
+  <h2>Every tool call is classified, not every agent</h2>
+  <p>The policy engine checks the action’s risk against the seat’s autonomy level and risk ceiling. The result is one of three: allow, approve first, or refuse. Every decision is written to the ledger.</p>
+  <div class="chart">
+  <svg viewBox="0 0 1080 380" role="img" aria-label="Request path: coder-1 calls the tool proxy, which asks the policy engine. Three outcomes: allow (low or medium within ceiling, logged and sampled) then executes in GitHub, Jira or CI; approve first (high risk, job waits) then the overseer approves and it executes with a watcher; refuse (blocked actions) then it is logged and the overseer alerted. Every decision is written to the ledger.">
+    <g class="n-worker"><rect x="20" y="130" width="140" height="60" rx="10"/><text class="t" x="90" y="156" text-anchor="middle">Coder-1</text><text class="s" x="90" y="175" text-anchor="middle">wants pr.open</text></g>
+    <g class="n-plat"><rect x="190" y="130" width="140" height="60" rx="10"/><text class="t" x="260" y="156" text-anchor="middle">Tool proxy</text><text class="s" x="260" y="175" text-anchor="middle">seat-scoped token</text></g>
+    <g class="n-staff"><rect x="360" y="130" width="150" height="60" rx="10"/><text class="t" x="435" y="156" text-anchor="middle">Policy engine</text><text class="s" x="435" y="175" text-anchor="middle">risk × autonomy × ceiling</text></g>
+    <path class="ln ar" d="M160 160H190"/><path class="ln ar" d="M330 160H360"/>
+    <path class="ln ar" d="M510 160H525V60H545"/><path class="ln ar" d="M525 160H545"/><path class="ln ar" d="M525 160V260H545"/>
+
+    <g class="n-lead"><rect x="545" y="28" width="220" height="64" rx="10"/><text class="t" x="561" y="52">Allow</text><text class="s" x="561" y="69">low or medium, within ceiling</text><text class="s" x="561" y="84">logged · 10% sampled</text></g>
+    <g class="n-human"><rect x="545" y="128" width="220" height="64" rx="10"/><text class="t" x="561" y="152">Approve first</text><text class="s" x="561" y="169">high risk · job waits</text><text class="s" x="561" y="184">or a scoped, expiring permit</text></g>
+    <g class="n-staff"><rect x="545" y="228" width="220" height="64" rx="10"/><text class="t" x="561" y="252">Refuse</text><text class="s" x="561" y="269">secrets, main.push, policy.write</text><text class="s" x="561" y="284">never allowed for agents</text></g>
+    <path class="ln ar" d="M765 60H805"/><path class="ln ar" d="M765 160H805"/><path class="ln ar" d="M765 260H805"/>
+    <g class="n-plat"><rect x="805" y="30" width="255" height="60" rx="10"/><text class="t" x="821" y="55">Executes</text><text class="s" x="821" y="74">GitHub · Jira · CI</text></g>
+    <g class="n-human"><rect x="805" y="130" width="255" height="60" rx="10"/><text class="t" x="821" y="155">Overseer approves</text><text class="s" x="821" y="174">SLA 4h · backup · then watcher armed</text></g>
+    <g class="n-plat"><rect x="805" y="230" width="255" height="60" rx="10"/><text class="t" x="821" y="255">Blocked</text><text class="s" x="821" y="274">logged · overseer alerted</text></g>
+
+    <path class="ln ar" d="M435 190V320"/>
+    <g class="n-staff"><rect x="20" y="320" width="1040" height="44" rx="10"/><text class="c" x="540" y="347" text-anchor="middle"><tspan style="font-weight:600">Ledger</tspan> · every decision, who approved it, and the before-state, append-only · rollback reads from here</text></g>
+  </svg>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th>Action</th><th>Risk</th><th>Gate</th></tr></thead>
+    <tbody>
+      <tr><td>repo.read · jira.read · branch.write · ci.run</td><td>Low</td><td>Allowed, logged, 2% sampled</td></tr>
+      <tr><td>pr.open · jira.estimate · pr.merge (CI green + approved)</td><td>Medium</td><td>Allowed, 10% sampled, rollback ready</td></tr>
+      <tr><td>ci.config.write · db.migration.write · prod.flag.change</td><td>High</td><td>Approve first, or a permit for one work item</td></tr>
+      <tr><td>secrets.read · main.push · policy.write</td><td>Blocked</td><td>Never for agents</td></tr>
+    </tbody></table></div>
+</section>
+
+<!-- ============ 10. STATES ============ -->
+<section id="states">
+  <span class="eyebrow">10 · State machines</span>
+  <h2>Work item, job, and seat occupant</h2>
+  <div class="chart">
+  <svg viewBox="0 0 1080 640" role="img" aria-label="Three state machines. Work item: Draft, Needs clarification, Ready, In progress, Blocked, In review, Awaiting release, Done, Reopened. Job: Queued, Running, Waiting, Paused, Cancelled, Closed. Seat occupant: Catalog, Probation, Active, Retraining, Benched, Retired, Promote.">
+    <text class="lbl" x="20" y="18">WORK ITEM · MIRRORS JIRA</text>
+    <g id="sm"></g>
+    <!-- work item arrows -->
+    <path class="ln ar" d="M140 92H200"/><path class="ln ar" d="M320 92H380"/><path class="ln ar" d="M500 92H560"/><path class="ln ar" d="M680 92H740"/><path class="ln ar" d="M890 92H930"/>
+    <path class="ln ar" d="M70 70V44H120"/><path class="ln ar" d="M240 44H260V70"/>
+    <path class="ln ar" d="M610 70V54H460V70"/><text class="cm" x="535" y="50" text-anchor="middle">changes</text>
+    <path class="ln ar" d="M395 114V150"/><path class="ln ar" d="M435 150V114"/>
+    <path class="ln ar" d="M985 114V150"/><path class="ln ar" d="M930 168H488V114"/>
+    <text class="cm" x="700" y="162" text-anchor="middle">defect found → back to work</text>
+
+    <text class="lbl" x="20" y="232">JOB</text>
+    <circle cx="40" cy="320" r="7" style="fill:var(--ink)"/>
+    <path class="ln ar" d="M47 320H90"/><text class="cm" x="68" y="345" text-anchor="middle">no slot</text>
+    <path class="ln ar" d="M40 313V258H395V298"/><text class="cm" x="220" y="252" text-anchor="middle">reservation ok</text>
+    <path class="ln ar" d="M210 320H330"/>
+    <path class="ln ar" d="M460 306L560 272"/><path class="ln ar" d="M560 284L460 316"/>
+    <text class="cm" x="505" y="262" text-anchor="middle">human / approval</text>
+    <path class="ln ar" d="M460 328L560 362"/><path class="ln ar" d="M560 376L460 340"/>
+    <text class="cm" x="625" y="412" text-anchor="middle">80% · stop rule · pause</text>
+    <path class="ln ar" d="M690 372H760"/>
+    <path class="ln ar" d="M460 320H880"/><text class="cm" x="790" y="314" text-anchor="middle">all steps done</text>
+
+    <text class="lbl" x="20" y="442">SEAT OCCUPANT</text>
+    <path class="ln ar" d="M140 522H180"/>
+    <path class="ln ar" d="M300 522H450"/><text class="cm" x="375" y="516" text-anchor="middle">passes probation</text>
+    <path class="ln ar" d="M500 500L430 476"/><path class="ln ar" d="M320 476L270 500"/>
+    <text class="cm" x="375" y="436" text-anchor="middle">new prompt, skills or model</text>
+    <path class="ln ar" d="M500 544L430 594"/><path class="ln ar" d="M230 544L310 600"/><path class="ln ar" d="M310 616L210 544"/>
+    <text class="cm" x="225" y="600" text-anchor="end">rehire</text>
+    <path class="ln ar" d="M440 608H560"/><text class="cm" x="500" y="630" text-anchor="middle">human approves</text>
+    <path class="ln ar" d="M570 522H660"/>
+  </svg>
+  </div>
+</section>
+
+<!-- ============ 11. SCORES ============ -->
+<section id="scores">
+  <span class="eyebrow">11 · Scorecards, probation, benching</span>
+  <h2>Real outcomes outweigh another model’s opinion</h2>
+  <div class="two">
+    <div class="tbl"><table style="min-width:0">
+      <thead><tr><th>Coder signal</th><th>Source</th><th>Weight</th></tr></thead>
+      <tbody>
+        <tr><td>Escaped defects (14 days)</td><td>Jira links</td><td class="n">20%</td></tr>
+        <tr><td>First-pass review approval</td><td>Reviewer</td><td class="n">15%</td></tr>
+        <tr><td>Estimate calibration</td><td>Actuals</td><td class="n">15%</td></tr>
+        <tr><td>Human minutes per point</td><td>Threads</td><td class="n">15%</td></tr>
+        <tr><td>Human overrides</td><td>Ledger</td><td class="n">15%</td></tr>
+        <tr><td>CI green on first push</td><td>CI</td><td class="n">10%</td></tr>
+        <tr><td>Cost per point</td><td>Gateway</td><td class="n">10%</td></tr>
+      </tbody></table></div>
+    <div class="tbl"><table style="min-width:0">
+      <thead><tr><th>Outcome</th><th>Trigger</th></tr></thead>
+      <tbody>
+        <tr><td>Promote</td><td>≥ 0.85 for 2 windows → more capacity or autonomy +1 (overseer approves)</td></tr>
+        <tr><td>Keep</td><td>0.70 – 0.85</td></tr>
+        <tr><td>Retrain</td><td>0.55 – 0.70 or a specific failure pattern → new version, back to probation</td></tr>
+        <tr><td>Bench</td><td>&lt; 0.55 or repeated policy violations → capacity 0, history kept</td></tr>
+        <tr><td>Retire</td><td>Benched &gt; 90 days and replaced · human approves</td></tr>
+      </tbody></table></div>
+  </div>
+  <div class="callout"><b>Shadow probation on PLAT-412:</b> coder-2 did the same job in its own sandbox and keyed the limit by API key, ignoring Dana’s recorded decision. Its shadow score is 0.58 against an exit bar of 0.75, and it has a decision violation in its last 5 jobs, so it stays on probation. None of its output left the sandbox.</div>
+</section>
+
+<!-- ============ 12. FAILURES ============ -->
+<section id="failures">
+  <span class="eyebrow">12 · Failure modes</span>
+  <h2>How each failure is caught, and what happens next</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Failure</th><th>Detected by</th><th>Response</th></tr></thead>
+    <tbody>
+      <tr><td>Coder misreads the ticket</td><td>AC→test mapping, blind estimate spread, plan review</td><td>Caught before code, while it’s cheap</td></tr>
+      <tr><td>Agent loops on one error</td><td>Same failure signature ×3</td><td>Hard stop, escalate with trace</td></tr>
+      <tr><td>Cost runaway</td><td>Gateway meter</td><td>80% pause, 100% refuse</td></tr>
+      <tr><td>Ignores a PM decision</td><td>Self-check and reviewer diff vs decisions</td><td>Changes requested; counts against score</td></tr>
+      <tr><td>PM never answers</td><td>SLA timer</td><td>Backup pinged; non-blocking proceeds on defaults</td></tr>
+      <tr><td>Reviewer rubber-stamps</td><td>Human-sample disagreement rises</td><td>Scored down; sampling raised to 30%</td></tr>
+      <tr><td>Coder and reviewer share a blind spot</td><td>Escaped defect rate</td><td>Use a different model vendor for the reviewer seat</td></tr>
+      <tr><td>Bad change reaches production</td><td>Watcher abort conditions</td><td>Platform reverts to before-state; incident opened</td></tr>
+      <tr><td>Agent tries to raise its own limits</td><td>Policy engine</td><td>Refused, logged, overseer alerted</td></tr>
+    </tbody></table></div>
+</section>
+
+<!-- ============ 13. BUILD ============ -->
+<section id="build">
+  <span class="eyebrow">13 · Build order</span>
+  <h2>Govern one crew well before adding layers</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Stage</th><th>What</th><th>Proves</th></tr></thead>
+    <tbody>
+      <tr><td>0 · Skeleton</td><td>Seat registry, ledger, metered gateway, tool proxy, kill switch</td><td>Agents can be stopped and metered</td></tr>
+      <tr><td>1 · One coder</td><td>Coder agent on real tickets, phases A–L; humans in every other seat</td><td>Coder loop, PM clarification, estimation</td></tr>
+      <tr><td>2 · Calibration</td><td>Actuals for 50+ jobs; reference classes and spread factors</td><td>Estimates can drive reservations</td></tr>
+      <tr><td>3 · Crew of three</td><td>Add tester and reviewer agents, briefs, human sampling</td><td>Handoffs work; signals are real</td></tr>
+      <tr><td>4 · Probation and bench</td><td>Shadow mode, scorecards, review outcomes</td><td>The hire/bench loop runs on real signals</td></tr>
+      <tr><td>5 · Agent lead at L2</td><td>Lead proposes assignments and sprints; a human approves</td><td>Whether an agent manager is worth its cost</td></tr>
+      <tr><td>6 · Earned autonomy</td><td>Seats move to L3 only when numbers support it</td><td>Autonomy that’s been earned</td></tr>
+    </tbody></table></div>
+</section>
+
+<footer>Concept design, not a working platform. A full text version is in <a href="docs/architecture.md">docs/architecture.md</a>. Back to the <a href="./">concept page</a>.</footer>
+</div>
+
+<script>
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs,parent,text){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(text!=null)e.textContent=text;if(parent)parent.appendChild(e);return e}
+function node(parent,cls,x,y,w,h,lines,opt={}){
+  const g=el("g",{class:cls},parent);el("rect",{x,y,width:w,height:h,rx:10},g);
+  const cx=opt.left?x+14:x+w/2,anchor=opt.left?"start":"middle";
+  lines.forEach(([c,t,dy])=>el("text",{class:c,x:cx,y:y+dy,"text-anchor":anchor},g,t));return g}
+
+/* journey */
+(()=>{const g=document.getElementById("jrows");
+const R=[
+ ["n-human","Board","humans","Sets total capacity and the quarterly goal","Quarterly · no agent seat at this level","$10,000/mo · G-Q4-2: −50% API incidents"],
+ ["n-human","CEO","human + copilot agent","Splits capacity across divisions","Copilot drafts the split, CEO approves","Engineering 40% · $4,000"],
+ ["n-human","CTO","human","Turns the goal into epics and picks crews","Weekly · sets the lead’s autonomy (L2)","PLAT-EPIC-40 · Platform 60% · $2,400"],
+ ["n-human","PM · Dana","human + PM-assist","Writes the story and acceptance criteria","Owns what “done” means; answers questions","PLAT-412 · 3 AC · ready_for_dev"],
+ ["n-lead","Platform Lead","agent · L2","Grooms, plans the sprint, assigns","Proposals approved by Priya (overseer)","assign → coder-1 · brief br_412"],
+ ["n-worker","Coder-1","agent · L3","Understands, clarifies, estimates, builds","12 phases · see section 4","PR #1187 · 5 pts · P90 $28"],
+ ["n-worker","Tester-1","agent · L3","Adds tests the coder didn’t write","Asks PM: fail open or closed?","test report + 3 extra tests"],
+ ["n-worker","Reviewer-1","agent · L3","Reviews against the plan and decisions","10% sampled by Sam (human)","approved · merged to main"],
+ ["n-human","Release","lead prepares · Priya approves","Staged rollout behind a flag","High risk: a human approves each stage","flag on: free → pro → all tiers"],
+ ["n-staff","HR · Finance · Audit","staff functions","Score the job, release unused budget","After every job · ledger is auditable","actual $13.20 · within P90 ✓"]];
+R.forEach((r,i)=>{const y=30+70*i;
+  node(g,r[0],60,y,180,50,[["t",r[1],22],["s",r[2],39]]);
+  el("text",{class:"c",x:270,y:y+21,style:"font-weight:600"},g,r[3]);
+  el("text",{class:"s",x:270,y:y+39},g,r[4]);
+  el("path",{class:"ln ar dash",d:`M680 ${y+25}H738`},g);
+  const c=el("g",{class:"chip"},g);el("rect",{x:740,y:y+7,width:320,height:36,rx:8},c);
+  el("text",{x:900,y:y+29,"text-anchor":"middle"},c,r[5]);
+  if(i<R.length-1)el("path",{class:"ln ar acc",d:`M900 ${y+43}V${y+77}`},g);
+});})();
+
+/* level cards */
+(()=>{const C=[
+ ["h","Board","HUMAN","h","Quarterly report: spend vs outcomes, incidents, autonomy changes","Total capacity, top goals, risk appetite, who may sit in exec seats","$10,000/mo · goal G-Q4-2","Never (top of the tree)","Not scored by the system"],
+ ["h","CEO","HUMAN + COPILOT","h","Board goals, last quarter’s cost per outcome, division requests","Division shares (Engineering 40%)","Allocation change set with before-state","A request exceeds the CEO reserve → board","Copilot scored on how much the CEO edits its drafts"],
+ ["h","CTO","HUMAN","h","Goal, $4,000, crew scorecards, incident data","Epics, which crew owns each, crew shares, lead autonomy","PLAT-EPIC-40 with metric · Platform 60%","Engineering total over $4,000 → CEO","Epic outcomes"],
+ ["h","PM · Dana","HUMAN + PM-ASSIST L2","h","Epic, customer complaints, support tickets","Acceptance criteria, priority, scope cuts","PLAT-412 ready · answers on threads","Scope changes the epic goal → CPO","Answer time, reopen rate, “not ready” flags · 300 min/week published"],
+ ["l","Platform Lead","AGENT · L2","a","Ranked backlog, $2,400, scorecards, load, estimates","Assignment, sprint plan, member shares, hire/bench (as proposals)","Assignments, briefs, sprint plan","Sprint P90 over capacity; anything touching prod","Plan vs done, cost per point, Priya’s rejection rate"],
+ ["w","Coder-1","AGENT · L3","a","Assignment + brief, ticket, repo, crew memory, thread","How to build, commits, tests, its own estimate","Understanding doc, estimate, plan, PR, lesson","Ambiguous AC, estimate over split rule, same error ×3, 80% spend","Defects, review pass, calibration, human min/point, overrides"],
+ ["w","Tester-1","AGENT · L3","a","PR, coder’s brief, acceptance criteria","Pass/fail on behaviour; which extra tests to add","Test report; tests committed to the PR branch","Untestable AC → PM (not the coder)","Bugs caught before vs after merge; false failures"],
+ ["w","Reviewer-1","AGENT · L3","a","PR, brief, plan, thread decisions","Approve or request changes","Review comments, approval","Disagreement after 2 rounds; anything security-shaped","Escaped defects, human-sample disagreement"],
+ ["st","HR · Finance · Audit","STAFF","st","Job signals, gateway spend, ledger","Review outcomes (proposed), spend alerts","Scorecards, daily spend report, audit trail","Retire, autonomy up → human","HR agent’s reviews spot-checked by overseers"]];
+const host=document.getElementById("cards");
+C.forEach(c=>{const d=document.createElement("article");d.className="card "+c[0];
+ d.innerHTML=`<div class="top"><h3>${c[1]}</h3><span class="badge ${c[3]}">${c[2]}</span></div>
+ <dl><dt>In</dt><dd>${c[4]}</dd><dt>Decides</dt><dd>${c[5]}</dd><dt>Out</dt><dd>${c[6]}</dd><dt>Escalates</dt><dd>${c[7]}</dd><dt>Scored on</dt><dd>${c[8]}</dd></dl>`;
+ host.appendChild(d);});})();
+
+/* coder phases */
+(()=>{const g=document.getElementById("phases");
+const P=[[25,110,"n-worker","PHASE A","Intake","budget + brief"],[201,110,"n-worker","PHASE B","Understand","map every AC to a test"],
+ [377,110,"n-worker","PHASE C","Ready?","Definition of Ready"],[553,110,"n-worker","PHASE E","Estimate","points, cost, human min"],
+ [729,110,"n-worker","PHASE F","Plan","reviewer checks plan"],[905,110,"n-worker","PHASE G","Implement","sandbox · test first"],
+ [377,2,"n-human","PHASE D","Clarify with PM","one batch, with defaults"],
+ [905,270,"n-worker","PHASE H","Self-check","PR checklist, mostly CI"],[729,270,"n-worker","PHASE I","Hand off","PR + two briefs"],
+ [553,270,"n-worker","PHASE J","Review loop","tester + reviewer"],[377,270,"n-human","PHASE K","Release gate","human approves prod"],
+ [201,270,"n-worker","PHASE L","Close & learn","actuals + lesson"],[25,270,"n-reserve","MEMORY","Crew memory","lead approves lesson"]];
+P.forEach(([x,y,c,l,t,s])=>{const h=y===2?70:70;node(g,c,x,y,150,h,[["lbl",l,18],["t",t,40],["s",s,58]],{left:true})});
+const st=document.getElementById("stops");
+["same error ×3 → escalate","80% budget → re-estimate","100% → gateway refuses","files outside plan → flagged","> 120 steps → pause"]
+ .forEach((t,i)=>{const c=el("g",{class:"chip"},st);el("rect",{x:41+i*201,y:410,width:191,height:30,rx:8},c);
+ el("text",{x:41+i*201+95.5,y:429,"text-anchor":"middle",style:"font-size:11px"},c,t)});})();
+
+/* estimation */
+(()=>{const g=document.getElementById("est");
+const S=[["STEP 1","Features","files, services, risk"],["STEP 2","Reference","5 nearest closed jobs"],["STEP 3","Adjust","named multipliers"],
+ ["STEP 4","Cross-check","sum of task points"],["STEP 5","Blind poker","3 seats, unseen"],["STEP 6","One round","reasons, then decide"]];
+S.forEach((s,i)=>node(g,"n-worker",22+i*150,40,136,84,[["lbl",s[0],20],["t",s[1],44],["s",s[2],64]],{left:true}));
+node(g,"n-lead",922,40,136,84,[["lbl","OUTPUT",20],["t","5 points",42],["s","$14 P50 · $28 P90",60],["s","45 human min",75]],{left:true});
+const rb=document.getElementById("refbars");
+[["PLAT-301 · 5 pt",12.4],["PLAT-288 · 3 pt",8.9],["PLAT-350 · 8 pt",33],["PLAT-266 · 3 pt",7.1],["PLAT-310 · 2 pt",5]]
+ .forEach(([l,v],i)=>{const y=204+i*28;el("text",{class:"cm",x:40,y:y+11},rb,l);
+ el("rect",{x:170,y,width:v*9,height:14,rx:3,style:"fill:var(--lead-bg);stroke:var(--lead)"},rb);
+ el("text",{class:"cm",x:176+v*9,y:y+11},rb,"$"+v.toFixed(2))});
+const tk=document.getElementById("ticks");
+[0,10,20,30,40].forEach(v=>{const x=570+v*11.5;el("path",{d:`M${x} 250v5`,style:"stroke:var(--muted)"},tk);el("text",{class:"cm",x,y:270,"text-anchor":"middle"},tk,"$"+v)});
+const pk=document.getElementById("poker");
+[["coder 5",600,76,"n-worker"],["tester 5",684,76,"n-worker"],["reviewer 8",768,96,"n-human"],["→ final 5",924,96,"n-lead"]]
+ .forEach(([t,x,w,c])=>{const gg=el("g",{class:c},pk);el("rect",{x,y:308,width:w,height:26,rx:13},gg);el("text",{class:"cm",x:x+w/2,y:325,"text-anchor":"middle",style:"fill:var(--ink)"},gg,t)});
+el("text",{class:"cm",x:894,y:325,"text-anchor":"middle"},pk,"1 round");})();
+
+/* capacity bars */
+(()=>{const g=document.getElementById("capbars");
+const rows=[[40,[["Engineering","40% · $4,000",400,"n-exec"],["Product","20% · $2,000",200,"n-plat"],["Support","25% · $2,500",250,"n-plat"],["Reserve","15% · $1,500",150,"n-reserve"]]],
+ [130,[["Platform crew","60% · $2,400",600,"n-lead"],["Other crews","40% · $1,600",400,"n-plat"]]],
+ [220,[["coder-1","40% · $960",400,"n-worker"],["tester-1","15% · $360",150,"n-worker"],["reviewer-1","15% · $360",150,"n-worker"],["Lead agent","10% · $240",100,"n-lead"],["Crew reserve","20% · $480 · shadow ≤ $100",200,"n-reserve"]]]];
+rows.forEach(([y,segs])=>{let x=40;segs.forEach(([t,s,w,c])=>{const gg=el("g",{class:c},g);el("rect",{x:x+1,y,width:w-2,height:44,rx:6},gg);
+ el("text",{class:"t",x:x+10,y:y+19,style:"font-size:13px"},gg,t);el("text",{class:"s",x:x+10,y:y+35},gg,s);x+=w})});})();
+
+/* state machines */
+(()=>{const g=document.getElementById("sm");
+const B=(x,y,w,h,c,t)=>{const gg=node(g,c,x,y,w,h,[["t",t,h/2+5]]);gg.querySelector("text").setAttribute("style","font-size:13px")};
+B(20,70,120,44,"n-plat","Draft");B(120,26,120,36,"n-human","Needs clarification");B(200,70,120,44,"n-plat","Ready");
+B(380,70,120,44,"n-worker","In progress");B(560,70,120,44,"n-worker","In review");B(740,70,150,44,"n-human","Awaiting release");
+B(930,70,110,44,"n-lead","Done");B(360,150,110,36,"n-reserve","Blocked");B(930,150,110,36,"n-reserve","Reopened");
+g.querySelectorAll("text")[1].setAttribute("style","font-size:11.5px");
+B(90,298,120,44,"n-reserve","Queued");B(330,298,130,44,"n-worker","Running");B(560,250,130,40,"n-human","Waiting");
+B(560,354,130,40,"n-reserve","Paused");B(760,354,120,40,"n-staff","Cancelled");B(880,298,120,44,"n-lead","Closed");
+B(20,500,120,44,"n-plat","Catalog");B(180,500,120,44,"n-human","Probation");B(450,500,120,44,"n-lead","Active");
+B(310,444,130,36,"n-worker","Retraining");B(310,590,130,36,"n-reserve","Benched");B(560,590,120,36,"n-staff","Retired");
+B(660,500,200,44,"n-exec","Promote · more share / L+1");
+el("text",{class:"cm",x:700,y:606},g,"benched keeps its definition and history");
+el("text",{class:"cm",x:700,y:622},g,"probation = shadow mode at 0% capacity");})();
+</script>
+</body>
+</html>
